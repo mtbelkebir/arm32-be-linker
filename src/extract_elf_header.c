@@ -10,12 +10,14 @@
  */
 
 #include "../include/extract_elf_header.h"
+#include "../include/bit_operations.h"
 #include "../include/logger.h"
 #include <elf.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
+// ! All the functions manage endianness before storing
 static void extract_ident(FILE *elf_file, Elf32_Ehdr *header_informations);
 static void extract_type(FILE *elf_file, Elf32_Ehdr *header_informations);
 static void extract_machine(FILE *elf_file, Elf32_Ehdr *header_informations);
@@ -31,6 +33,7 @@ static void extract_shentsize(FILE *elf_file, Elf32_Ehdr *header_informations);
 static void extract_shnum(FILE *elf_file, Elf32_Ehdr *header_informations);
 static void extract_shstrndx(FILE *elf_file, Elf32_Ehdr *header_informations);
 static void file_error(FILE *elf_file);
+static bool is_same_endianess(const Elf32_Ehdr *header_informations);
 static bool is_file_big_endian(const Elf32_Ehdr *header_informations);
 
 /**
@@ -108,6 +111,9 @@ static void extract_type(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&type, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      type = byte_swap(type);
+    }
     header_informations->e_type = type;
   } else {
     file_error(elf_file);
@@ -131,6 +137,9 @@ static void extract_machine(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&machine, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      machine = byte_swap(machine);
+    }
     header_informations->e_machine = machine;
   } else {
     file_error(elf_file);
@@ -154,6 +163,9 @@ static void extract_version(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&version, sizeof(Elf32_Word), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      version = byte_swap(version);
+    }
     header_informations->e_version = version;
   } else {
     file_error(elf_file);
@@ -175,6 +187,9 @@ static void extract_entry(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&entry, sizeof(Elf32_Addr), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      entry = byte_swap(entry);
+    }
     header_informations->e_entry = entry;
   } else {
     file_error(elf_file);
@@ -196,6 +211,9 @@ static void extract_phoff(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&phoff, sizeof(Elf32_Off), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      phoff = byte_swap(phoff);
+    }
     header_informations->e_phoff = phoff;
   } else {
     file_error(elf_file);
@@ -217,6 +235,9 @@ static void extract_shoff(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&shoff, sizeof(Elf32_Off), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      shoff = byte_swap(shoff);
+    }
     header_informations->e_shoff = shoff;
   } else {
     file_error(elf_file);
@@ -238,6 +259,9 @@ static void extract_flags(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&flags, sizeof(Elf32_Word), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      flags = byte_swap(flags);
+    }
     header_informations->e_flags = flags;
   } else {
     file_error(elf_file);
@@ -259,6 +283,9 @@ static void extract_ehsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&ehsize, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      ehsize = byte_swap(ehsize);
+    }
     header_informations->e_ehsize = ehsize;
   } else {
     file_error(elf_file);
@@ -280,6 +307,9 @@ static void extract_phentsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&phentsize, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      phentsize = byte_swap(phentsize);
+    }
     header_informations->e_phentsize = phentsize;
   } else {
     file_error(elf_file);
@@ -301,6 +331,9 @@ static void extract_phnum(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&phnum, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      phnum = byte_swap(phnum);
+    }
     header_informations->e_phnum = phnum;
   } else {
     file_error(elf_file);
@@ -322,6 +355,9 @@ static void extract_shentsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&shentsize, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      shentsize = byte_swap(shentsize);
+    }
     header_informations->e_shentsize = shentsize;
   } else {
     file_error(elf_file);
@@ -343,6 +379,9 @@ static void extract_shnum(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&shnum, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      shnum = byte_swap(shnum);
+    }
     header_informations->e_shnum = shnum;
   } else {
     file_error(elf_file);
@@ -364,6 +403,9 @@ static void extract_shstrndx(FILE *elf_file, Elf32_Ehdr *header_informations) {
       fread(&shstrndx, sizeof(Elf32_Half), 1, elf_file);
 
   if (return_fread_value == 1) {
+    if (!is_same_endianess(header_informations)) {
+      shstrndx = byte_swap(shstrndx);
+    }
     header_informations->e_shstrndx = shstrndx;
   } else {
     file_error(elf_file);
@@ -399,4 +441,16 @@ static void file_error(FILE *elf_file) {
  */
 static bool is_file_big_endian(const Elf32_Ehdr *header_informations) {
   return (header_informations->e_ident[EI_DATA] == 2);
+}
+
+/**
+ * @brief return true if the host and the file is in the same endianess
+ *
+ * @param header_informations
+ * @return true
+ * @return false
+ */
+bool is_same_endianess(const Elf32_Ehdr *header_informations) {
+  return (is_host_big_endian() && is_file_big_endian(header_informations)) ||
+         (!is_host_big_endian() && !is_file_big_endian(header_informations));
 }
