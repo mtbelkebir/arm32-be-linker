@@ -57,82 +57,66 @@ void display_elf_headers(const Elf32_Ehdr *elf) {
  * @param e_ident
  */
 static void display_ident(const unsigned char e_ident[]) {
-  const unsigned char msg_ident[] = "ELF Identification:";
-  const unsigned char msg_file_ident[] = "File identification";
-  const unsigned char msg_file_class[] = "File class";
-  const unsigned char msg_file_version[] = "File version";
-  const unsigned char msg_file_pad[] = "File pad";
-  const unsigned char msg_file_nident[] = "e_ident size";
-  const unsigned char w_invalid_class[] = "Class invalid !";
-  const unsigned char w_invalid_data_encoding[] = "Invalid data encoding !";
-  const unsigned char n_class_32[] = "32-bit objects";
-  const unsigned char n_class_64[] = "64-bit objects";
-  const unsigned char n_data_lsb[] = "Little Endian";
-  const unsigned char n_data_msb[] = "Big Endian";
-  const unsigned char e_class[] =
-      "La classe ne correspond à aucun type prédéfinis !";
-  const unsigned char e_data_encoding[] =
-      "La data encodé ne correspond à aucun type prédéfinis !";
-  const unsigned char e_version[] = "La version n'est pas bonne !";
-  const unsigned char msg_file_data[] = "Data encoding";
-
-  print_notification(msg_ident);
+  print_notification((unsigned char *)"ELF Identification:");
 
   // Identification
-  print_notification(msg_file_ident);
+  print_notification((unsigned char *)"File identification");
   printf("EI_MAG0 -> (%X)\n", e_ident[EI_MAG0]);
   printf("EI_MAG1 -> (%c)\n", e_ident[EI_MAG1]);
   printf("EI_MAG2 -> (%c)\n", e_ident[EI_MAG2]);
   printf("EI_MAG3 -> (%c)\n", e_ident[EI_MAG3]);
 
   // Class
-  print_notification(msg_file_class);
+  print_notification((unsigned char *)"File class");
   switch (e_ident[EI_CLASS]) {
   case ELFCLASSNONE:
-    print_warning(w_invalid_class);
+    print_warning((unsigned char *)"Class invalid !");
     break;
   case ELFCLASS32:
-    print_notification(n_class_32);
+    print_notification((unsigned char *)"32-bit objects");
     break;
   case ELFCLASS64:
-    print_notification(n_class_64);
+    print_notification((unsigned char *)"64-bit objects");
     break;
   default:
-    print_error(e_class);
+    print_warning(
+        (unsigned char *)"La classe ne correspond à aucun type prédéfinis !");
   }
 
   // Data:
-  print_notification(msg_file_data);
+  print_notification((unsigned char *)"Data encoding");
   switch (e_ident[EI_DATA]) {
   case ELFDATANONE:
-    print_warning(w_invalid_data_encoding);
+    print_warning((unsigned char *)"Invalid data encoding !");
     break;
   case ELFDATA2LSB:
-    print_notification(n_data_lsb);
+    print_notification((unsigned char *)"Little Endian");
     break;
   case ELFDATA2MSB:
-    print_notification(n_data_msb);
+    print_notification((unsigned char *)"Big Endian");
     break;
   default:
-    print_error(e_data_encoding);
+    print_warning(
+        (unsigned char
+             *)"La data encodé ne correspond à aucun type prédéfinis !");
   }
 
   // Version:
-  print_notification(msg_file_version);
+  print_notification((unsigned char *)"File version");
   switch (e_ident[EI_VERSION]) {
   case EV_CURRENT:
     printf("(%d)\n", EV_CURRENT);
     break;
   default:
-    print_error(e_version);
+    print_warning((unsigned char *)"La version n'est pas bonne !");
   }
 
   // EI_PAD:
-  print_notification(msg_file_pad);
+  print_notification((unsigned char *)"File pad");
   printf("(%d)\n", e_ident[EI_PAD]);
 
   // EI_NINDENT:
-  print_notification(msg_file_nident);
+  print_notification((unsigned char *)"e_ident size");
   printf("(%d)\n", e_ident[EI_NIDENT]);
 
   return;
@@ -144,29 +128,21 @@ static void display_ident(const unsigned char e_ident[]) {
  * @param e_type
  */
 static void display_type(const Elf32_Half *e_type) {
-  const unsigned char msg_type[] = "Type:";
-  const unsigned char w_file_type[] = "No file type";
-  const unsigned char n_file_type_rel[] = "Relocatable file";
-  const unsigned char n_file_type_exec[] = "Executable file";
-  const unsigned char n_file_type_share[] = "Shared file";
-  const unsigned char n_file_type_core[] = "Core file";
-  const unsigned char e_file_type[] = "File type not defined !";
-
   switch (*e_type) {
   case ET_NONE:
-    print_warning(w_file_type);
+    print_warning((unsigned char *)"No file type");
     break;
   case ET_REL:
-    print_notification(n_file_type_rel);
+    print_notification((unsigned char *)"Relocatable file");
     break;
   case ET_EXEC:
-    print_notification(n_file_type_exec);
+    print_notification((unsigned char *)"Executable file");
     break;
   case ET_DYN:
-    print_notification(n_file_type_share);
+    print_notification((unsigned char *)"Shared file");
     break;
   case ET_CORE:
-    print_notification(n_file_type_core);
+    print_notification((unsigned char *)"Core file");
     break;
   case ET_LOPROC:
     print_warning((const unsigned char *)"Processor specific start");
@@ -175,7 +151,7 @@ static void display_type(const Elf32_Half *e_type) {
     print_warning((const unsigned char *)"Processor specific end");
     break;
   default:
-    print_error(e_file_type);
+    print_warning((unsigned char *)"File type not defined !");
   }
 
   return;
@@ -217,8 +193,11 @@ static void display_machine(const Elf32_Half *e_machine) {
   case EM_MIPS_RS4_BE:
     print_notification((unsigned char *)"MIPS RS4000 Big-Endian");
     break;
+  case EM_ARM:
+    print_notification((unsigned char *)"ARM");
+    break;
   default:
-    print_error((unsigned char *)"Reserved for futur use");
+    print_warning((unsigned char *)"Reserved for futur use");
   }
 
   return;
@@ -252,7 +231,7 @@ static void display_entry(const Elf32_Addr *e_entry) {
   if (*e_entry == 0) {
     print_warning((unsigned char *)"No entry point");
   } else {
-    printf("%X", *e_entry);
+    printf("%X\n", *e_entry);
   }
 
   return;
@@ -268,7 +247,7 @@ static void display_phoff(const Elf32_Off *e_phoff) {
   if (*e_phoff == 0) {
     print_warning((unsigned char *)"No offset");
   } else {
-    printf("%X", *e_phoff);
+    printf("%X\n", *e_phoff);
   }
 
   return;
@@ -284,7 +263,7 @@ static void display_shoff(const Elf32_Off *e_shoff) {
   if (*e_shoff == 0) {
     print_warning((unsigned char *)"No offset");
   } else {
-    printf("%X", *e_shoff);
+    printf("%d\n", *e_shoff);
   }
   return;
 }
@@ -296,7 +275,7 @@ static void display_shoff(const Elf32_Off *e_shoff) {
  */
 static void display_flags(const Elf32_Word *flags) {
   print_notification((unsigned char *)"Flags:");
-  printf("%X", *flags);
+  printf("%X\n", *flags);
   return;
 }
 
@@ -307,7 +286,7 @@ static void display_flags(const Elf32_Word *flags) {
  */
 static void display_ehsize(const Elf32_Half *ehsize) {
   print_notification((unsigned char *)"ELF header's size:");
-  printf("%X", *ehsize);
+  printf("%d\n", *ehsize);
   return;
 }
 
@@ -318,7 +297,7 @@ static void display_ehsize(const Elf32_Half *ehsize) {
  */
 static void display_phentsize(const Elf32_Half *phentsize) {
   print_notification((unsigned char *)"Phentsize:");
-  printf("%X", *phentsize);
+  printf("%d\n", *phentsize);
   return;
 }
 
@@ -332,7 +311,7 @@ static void display_phnum(const Elf32_Half *phnum) {
   if (*phnum == 0) {
     print_warning((unsigned char *)"No program header table");
   } else {
-    printf("%X", *phnum);
+    printf("%d\n", *phnum);
   }
   return;
 }
@@ -344,7 +323,7 @@ static void display_phnum(const Elf32_Half *phnum) {
  */
 static void display_shentsize(const Elf32_Half *shentsize) {
   print_notification((unsigned char *)"Shentsize:");
-  printf("%X", *shentsize);
+  printf("%d\n", *shentsize);
   return;
 }
 
@@ -358,7 +337,7 @@ static void display_shnum(const Elf32_Half *shnum) {
   if (*shnum == 0) {
     print_warning((unsigned char *)"No section header table");
   } else {
-    printf("%X", *shnum);
+    printf("%d\n", *shnum);
   }
   return;
 }
@@ -373,7 +352,7 @@ static void display_shstrndx(const Elf32_Half *shstrndx) {
   if (*shstrndx == SHN_UNDEF) {
     print_warning((unsigned char *)"No section name string table");
   } else {
-    printf("%X", *shstrndx);
+    printf("%d\n", *shstrndx);
   }
   return;
 }

@@ -19,6 +19,8 @@ uint16_t swap_16(uint16_t value);
 uint32_t swap_32(uint32_t value);
 uint64_t swap_64(uint64_t value);
 
+bool is_host_big_endian(void);
+
 #define byte_swap(x)                                                           \
   _Generic((x), uint16_t: swap_16, uint32_t: swap_32, uint64_t: swap_64)(x)
 
