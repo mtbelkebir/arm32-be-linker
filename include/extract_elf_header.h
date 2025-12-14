@@ -18,6 +18,15 @@
 #include <stdint.h>
 #include <stdio.h>
 
+/**
+ * @brief Extract all informations header from a ELF file into the structure
+ * passed in argument, return true if the extraction is successfull
+ *
+ * @param filename
+ * @param header_informations
+ * @return true
+ * @return false
+ */
 bool extract_elf_informations(char filename[], Elf32_Ehdr *header_informations);
 
 #endif //__EXTRACT_ELF_HEADER__
