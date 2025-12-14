@@ -14,6 +14,9 @@
 #include <elf.h>
 #include <stdio.h>
 
+// ! EM_MIPS_RS4_BE seems to be undeclared in elf.h (10 value)
+#define EM_MIPS_RS4_BE 0xA
+
 static void display_ident(const unsigned char e_ident[]);
 static void display_type(const Elf32_Half *e_type);
 static void display_machine(const Elf32_Half *e_machine);
@@ -161,4 +164,199 @@ static void display_type(const Elf32_Half *e_type) {
   return;
 }
 
-static void display_machine(const Elf32_Half *e_machine) {}
+/**
+ * @brief Display the machine's file depending on the e_machine
+ * ! EM_MIPS_RS4_BE seems to be undeclared in elf.h
+ * @param e_machine
+ */
+static void display_machine(const Elf32_Half *e_machine) {
+  print_notification((unsigned char *)"Machine:");
+
+  switch (*e_machine) {
+  case ET_NONE:
+    print_warning((unsigned char *)"No machine");
+    break;
+  case EM_M32:
+    print_notification((unsigned char *)"AT&T WE 32100");
+    break;
+  case EM_SPARC:
+    print_notification((unsigned char *)"SPARC");
+    break;
+  case EM_386:
+    print_notification((unsigned char *)"Intel Architecture");
+    break;
+  case EM_68K:
+    print_notification((unsigned char *)"Motorola 68000");
+    break;
+  case EM_88K:
+    print_notification((unsigned char *)"Motorola 88000");
+    break;
+  case EM_860:
+    print_notification((unsigned char *)"Intel 80860");
+    break;
+  case EM_MIPS:
+    print_notification((unsigned char *)"MIPS RS3000 Big-Endian");
+    break;
+  case EM_MIPS_RS4_BE:
+    print_notification((unsigned char *)"MIPS RS4000 Big-Endian");
+    break;
+  default:
+    print_error((unsigned char *)"Reserved for futur use");
+  }
+
+  return;
+}
+
+/**
+ * @brief Display the version's file depending on the e_version
+ *
+ * @param e_version
+ */
+static void display_version(const Elf32_Word *e_version) {
+  print_notification((unsigned char *)"Version:");
+
+  switch (*e_version) {
+  case EV_NONE:
+    print_warning((unsigned char *)"Invalid version");
+    break;
+  case EV_CURRENT:
+    print_notification((unsigned char *)"Current version");
+  }
+  return;
+}
+
+/**
+ * @brief Display the entry's file depending on the e_entry
+ *
+ * @param e_entry
+ */
+static void display_entry(const Elf32_Addr *e_entry) {
+  print_notification((unsigned char *)"Entry point:");
+  if (*e_entry == 0) {
+    print_warning((unsigned char *)"No entry point");
+  } else {
+    printf("%X", *e_entry);
+  }
+
+  return;
+}
+
+/**
+ * @brief Display the phoff's file depending on the e_phoff
+ *
+ * @param e_phoff
+ */
+static void display_phoff(const Elf32_Off *e_phoff) {
+  print_notification((unsigned char *)"Program header table's file offset");
+  if (*e_phoff == 0) {
+    print_warning((unsigned char *)"No offset");
+  } else {
+    printf("%X", *e_phoff);
+  }
+
+  return;
+}
+
+/**
+ * @brief Display the shoff's file depending on the e_shoff
+ *
+ * @param e_shoff
+ */
+static void display_shoff(const Elf32_Off *e_shoff) {
+  print_notification((unsigned char *)"Section header table's file offset");
+  if (*e_shoff == 0) {
+    print_warning((unsigned char *)"No offset");
+  } else {
+    printf("%X", *e_shoff);
+  }
+  return;
+}
+
+/**
+ * @brief Display the flags' file depending on the flags
+ *
+ * @param flags
+ */
+static void display_flags(const Elf32_Word *flags) {
+  print_notification((unsigned char *)"Flags:");
+  printf("%X", *flags);
+  return;
+}
+
+/**
+ * @brief Display the size of ELF header's file depending on the ehsize
+ *
+ * @param ehsize
+ */
+static void display_ehsize(const Elf32_Half *ehsize) {
+  print_notification((unsigned char *)"ELF header's size:");
+  printf("%X", *ehsize);
+  return;
+}
+
+/**
+ * @brief Display the size of one entry from the file depending on the phentsize
+ *
+ * @param phentsize
+ */
+static void display_phentsize(const Elf32_Half *phentsize) {
+  print_notification((unsigned char *)"Phentsize:");
+  printf("%X", *phentsize);
+  return;
+}
+
+/**
+ * @brief Display the phnum's file depending on the phnum
+ *
+ * @param phnum
+ */
+static void display_phnum(const Elf32_Half *phnum) {
+  print_notification((unsigned char *)"Phnum:");
+  if (*phnum == 0) {
+    print_warning((unsigned char *)"No program header table");
+  } else {
+    printf("%X", *phnum);
+  }
+  return;
+}
+
+/**
+ * @brief Display the shentsize's file depending on the shentsize
+ *
+ * @param phnum
+ */
+static void display_shentsize(const Elf32_Half *shentsize) {
+  print_notification((unsigned char *)"Shentsize:");
+  printf("%X", *shentsize);
+  return;
+}
+
+/**
+ * @brief Display the shnum's file depending on the shnum
+ *
+ * @param shnum
+ */
+static void display_shnum(const Elf32_Half *shnum) {
+  print_notification((unsigned char *)"Shnum:");
+  if (*shnum == 0) {
+    print_warning((unsigned char *)"No section header table");
+  } else {
+    printf("%X", *shnum);
+  }
+  return;
+}
+
+/**
+ * @brief Display the shstrndx's file depending on the shstrndx
+ *
+ * @param shstrndx
+ */
+static void display_shstrndx(const Elf32_Half *shstrndx) {
+  print_notification((unsigned char *)"Shstrndx:");
+  if (*shstrndx == SHN_UNDEF) {
+    print_warning((unsigned char *)"No section name string table");
+  } else {
+    printf("%X", *shstrndx);
+  }
+  return;
+}
