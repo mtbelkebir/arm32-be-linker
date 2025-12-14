@@ -9,6 +9,7 @@
  *
  */
 
+#include "../include/display_elf_header.h"
 #include "../include/extract_elf_header.h"
 #include <elf.h>
 #include <stdio.h>
@@ -17,6 +18,7 @@ int main(int argc, char *argv[]) {
   Elf32_Ehdr elf;
   bool res = extract_elf_informations(argv[1], &elf);
 
+  // ! Sans la fonction display:
   if (res) {
     printf("\n------Informations ELF------\n");
     printf("Magic Number: ");
@@ -37,6 +39,12 @@ int main(int argc, char *argv[]) {
     printf("\nShnum -> %x", elf.e_shnum);
     printf("\nShstrndx -> %x", elf.e_shstrndx);
     printf("\n------------------------------\n");
+  }
+
+  // * Avec la fonction display:
+
+  if (res) {
+    display_elf_headers(&elf);
   }
 
   return 0;

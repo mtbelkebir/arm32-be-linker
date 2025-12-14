@@ -9,7 +9,7 @@
  *
  */
 
-#include "../include/display_elf_headers.h"
+#include "../include/display_elf_header.h"
 #include "../include/logger.h"
 #include <elf.h>
 #include <stdio.h>
