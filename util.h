@@ -22,12 +22,21 @@ Contact: Guillaume.Huard@imag.fr
 */
 #ifndef __UTIL_H__
 #define __UTIL_H__
-
+#include <stdint.h>
 int is_big_endian();
-
+/*
 #define reverse_2(x) ((((x)&0xFF)<<8)|(((x)>>8)&0xFF))
 #define reverse_4(x) ((((x)&0xFF)<<24)|((((x)>>8)&0xFF)<<16)|\
-						((((x)>>16)&0xFF)<<8)|(((x)>>24)&0xFF))
-
+	((((x)>>16)&0xFF)<<8)|(((x)>>24)&0xFF))
+*/
+inline uint16_t reverse_2(uint16_t x) {
+	return ((((x)&0xFF)<<8)|(((x)>>8)&0xFF));
+}
+inline uint32_t reverse_4(uint32_t x) {
+	return ((((x)&0xFF)<<24)|((((x)>>8)&0xFF)<<16)|
+						((((x)>>16)&0xFF)<<8)|(((x)>>24)&0xFF));
+}
+#define byte_swap(x)                                                           \
+	_Generic((x), uint16_t: reverse_2, uint32_t: reverse_4)(x)
 #define min(x,y) ((x)<(y)?(x):(y))
 #endif
