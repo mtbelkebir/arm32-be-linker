@@ -32,7 +32,24 @@ static void display_shentsize(const Elf32_Half *shentsize);
 static void display_shnum(const Elf32_Half *shnum);
 static void display_shstrndx(const Elf32_Half *shstrndx);
 
-void display_elf_headers(const Elf32_Ehdr *elf);
+void display_elf_headers(const Elf32_Ehdr *elf) {
+  display_ident(elf->e_ident);
+  display_type(&elf->e_type);
+  display_machine(&elf->e_machine);
+  display_version(&elf->e_version);
+  display_entry(&elf->e_entry);
+  display_phoff(&elf->e_phoff);
+  display_shoff(&elf->e_shoff);
+  display_flags(&elf->e_flags);
+  display_ehsize(&elf->e_ehsize);
+  display_phentsize(&elf->e_phentsize);
+  display_phnum(&elf->e_phnum);
+  display_shentsize(&elf->e_shentsize);
+  display_shnum(&elf->e_shnum);
+  display_shstrndx(&elf->e_shstrndx);
+
+  return;
+}
 
 /**
  * @brief Display all informations in the e_ident array
