@@ -9,7 +9,7 @@
  *
  */
 
-#include "../include/logger.h"
+#include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
 

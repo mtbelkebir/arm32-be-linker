@@ -4,7 +4,7 @@
 AC_PREREQ([2.67])
 AC_INIT([ELF_Linker],[1.0],[Guillaume.Huard@imag.fr])
 AC_CONFIG_AUX_DIR([build-aux])
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_SRCDIR([debug.c])
 # AC_CONFIG_HEADERS([config.h])
 

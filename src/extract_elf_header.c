@@ -9,13 +9,15 @@
  *
  */
 
-#include "../include/extract_elf_header.h"
-#include "../include/bit_operations.h"
-#include "../include/logger.h"
+#include "extract_elf_header.h"
+#include "util.h"
+#include "logger.h"
 #include <elf.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "../util.h"
 
 // ! All the functions manage endianness before storing
 static void extract_ident(FILE *elf_file, Elf32_Ehdr *header_informations);
@@ -49,7 +51,6 @@ bool extract_elf_informations(char filename[],
                               Elf32_Ehdr *header_informations) {
   FILE *elf_file = fopen(filename, "rb");
   if (elf_file == NULL) {
-    fclose(elf_file);
     unsigned char error_message[] = "The file can't be opened";
     print_error(error_message);
   }
@@ -95,7 +96,6 @@ static void extract_ident(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-  return;
 }
 
 /**
@@ -115,13 +115,12 @@ static void extract_type(FILE *elf_file, Elf32_Ehdr *header_informations) {
 
   if (return_fread_value == 1) {
     if (!is_same_endianess(header_informations)) {
-      type = swap_16(type);
+      type = reverse_2(type);
     }
     header_informations->e_type = type;
   } else {
     file_error(elf_file);
   }
-  return;
 }
 
 /**
@@ -147,7 +146,6 @@ static void extract_machine(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-  return;
 }
 
 /**
@@ -173,7 +171,6 @@ static void extract_version(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-  return;
 }
 
 /**
@@ -198,7 +195,6 @@ static void extract_entry(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -222,7 +218,6 @@ static void extract_phoff(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -239,14 +234,13 @@ static void extract_shoff(FILE *elf_file, Elf32_Ehdr *header_informations) {
 
   if (return_fread_value == 1) {
     if (!is_same_endianess(header_informations)) {
-      shoff = swap_32(shoff);
+      shoff = reverse_4(shoff);
     }
     header_informations->e_shoff = shoff;
   } else {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -270,7 +264,6 @@ static void extract_flags(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -294,7 +287,6 @@ static void extract_ehsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -318,7 +310,6 @@ static void extract_phentsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -342,7 +333,6 @@ static void extract_phnum(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -366,7 +356,6 @@ static void extract_shentsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -390,7 +379,6 @@ static void extract_shnum(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -414,7 +402,6 @@ static void extract_shstrndx(FILE *elf_file, Elf32_Ehdr *header_informations) {
     file_error(elf_file);
   }
 
-  return;
 }
 
 /**
@@ -432,7 +419,6 @@ static void file_error(FILE *elf_file) {
     perror("Error reading elf files");
     print_error(error_message);
   }
-  return;
 }
 
 /**
@@ -454,6 +440,6 @@ static bool is_file_big_endian(const Elf32_Ehdr *header_informations) {
  * @return false
  */
 bool is_same_endianess(const Elf32_Ehdr *header_informations) {
-  return (is_host_big_endian() && is_file_big_endian(header_informations)) ||
-         (!is_host_big_endian() && !is_file_big_endian(header_informations));
+  return (is_big_endian() && is_file_big_endian(header_informations)) ||
+         (!is_big_endian() && !is_file_big_endian(header_informations));
 }
