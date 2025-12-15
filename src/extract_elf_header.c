@@ -9,15 +9,14 @@
  *
  */
 
-#include "extract_elf_header.h"
-#include "util.h"
-#include "logger.h"
+#include "../include/extract_elf_header.h"
+#include "../include/logger.h"
+#include "../util.h"
 #include <elf.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-#include "../util.h"
 
 // ! All the functions manage endianness before storing
 static void extract_ident(FILE *elf_file, Elf32_Ehdr *header_informations);
@@ -39,49 +38,41 @@ static bool is_same_endianess(const Elf32_Ehdr *header_informations);
 static bool is_file_big_endian(const Elf32_Ehdr *header_informations);
 
 /**
- * @brief Extract all informations in a ELF file and insert it in the structure
- * passed in argument. Return true if everything is ok
+ * @brief Extract all informations in a ELF file and return the structure
+ * contains all the informations
  *
- * @param filename
- * @param header_informations
- * @return true
- * @return false
+ * @pre A ELF file correctly open
+ * @post A Elf32_Ehdr with all informations insert from the ELF file
+ *
+ * @param elf_file
+ * @return Elf32_Ehdr
  */
-bool extract_elf_informations(char filename[],
-                              Elf32_Ehdr *header_informations) {
-  FILE *elf_file = fopen(filename, "rb");
-  if (elf_file == NULL) {
-    unsigned char error_message[] = "The file can't be opened";
-    print_error(error_message);
-  }
+Elf32_Ehdr extract_elf_informations(FILE *elf_file) {
+
+  Elf32_Ehdr header_informations;
 
   // Extract all the informations:
-  extract_ident(elf_file, header_informations);
-  extract_type(elf_file, header_informations);
-  extract_machine(elf_file, header_informations);
-  extract_version(elf_file, header_informations);
-  extract_entry(elf_file, header_informations);
-  extract_phoff(elf_file, header_informations);
-  extract_shoff(elf_file, header_informations);
-  extract_flags(elf_file, header_informations);
-  extract_ehsize(elf_file, header_informations);
-  extract_phentsize(elf_file, header_informations);
-  extract_phnum(elf_file, header_informations);
-  extract_shentsize(elf_file, header_informations);
-  extract_shnum(elf_file, header_informations);
-  extract_shstrndx(elf_file, header_informations);
+  extract_ident(elf_file, &header_informations);
+  extract_type(elf_file, &header_informations);
+  extract_machine(elf_file, &header_informations);
+  extract_version(elf_file, &header_informations);
+  extract_entry(elf_file, &header_informations);
+  extract_phoff(elf_file, &header_informations);
+  extract_shoff(elf_file, &header_informations);
+  extract_flags(elf_file, &header_informations);
+  extract_ehsize(elf_file, &header_informations);
+  extract_phentsize(elf_file, &header_informations);
+  extract_phnum(elf_file, &header_informations);
+  extract_shentsize(elf_file, &header_informations);
+  extract_shnum(elf_file, &header_informations);
+  extract_shstrndx(elf_file, &header_informations);
 
-  fclose(elf_file);
-
-  return true;
+  return header_informations;
 }
 
 /**
  * @brief Read identification informations from ELF files and insert it in the
- * structure passed in argument
- *
- * @pre A file correctly opened
- * @post The identification's ELF file in the ELF structure
+ * structure
  *
  * @param elf_file
  * @param header_informations
@@ -99,11 +90,7 @@ static void extract_ident(FILE *elf_file, Elf32_Ehdr *header_informations) {
 }
 
 /**
- * @brief Read type from ELF files and insert it in the structure passed in
- * argument
- *
- * @pre A file correctly opened
- * @post The type's ELF file in the ELF structure
+ * @brief Read type from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -115,7 +102,7 @@ static void extract_type(FILE *elf_file, Elf32_Ehdr *header_informations) {
 
   if (return_fread_value == 1) {
     if (!is_same_endianess(header_informations)) {
-      type = reverse_2(type);
+      type = byte_swap(type);
     }
     header_informations->e_type = type;
   } else {
@@ -124,11 +111,7 @@ static void extract_type(FILE *elf_file, Elf32_Ehdr *header_informations) {
 }
 
 /**
- * @brief Read machine from ELF files and insert it in the structure passed in
- * argument
- *
- * @pre A file correctly opened
- * @post The machine's ELF file in the ELF structure
+ * @brief Read machine from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -149,11 +132,7 @@ static void extract_machine(FILE *elf_file, Elf32_Ehdr *header_informations) {
 }
 
 /**
- * @brief  Read version from ELF files and insert it in the structure passed in
- * argument
- *
- * @pre A file correctly opened
- * @post The version's ELF file in the ELF structure
+ * @brief  Read version from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -174,8 +153,7 @@ static void extract_version(FILE *elf_file, Elf32_Ehdr *header_informations) {
 }
 
 /**
- * @brief Read entry from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read entry from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -194,12 +172,10 @@ static void extract_entry(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read phoff from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read phoff from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -217,12 +193,10 @@ static void extract_phoff(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read shoff from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read shoff from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -234,18 +208,16 @@ static void extract_shoff(FILE *elf_file, Elf32_Ehdr *header_informations) {
 
   if (return_fread_value == 1) {
     if (!is_same_endianess(header_informations)) {
-      shoff = reverse_4(shoff);
+      shoff = byte_swap(shoff);
     }
     header_informations->e_shoff = shoff;
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read flags from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read flags from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -263,12 +235,10 @@ static void extract_flags(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read ehsize from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read ehsize from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -286,12 +256,10 @@ static void extract_ehsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read phentsize from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read phentsize from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -309,12 +277,10 @@ static void extract_phentsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read phnum from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read phnum from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -332,12 +298,10 @@ static void extract_phnum(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read shentsize from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read shentsize from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -355,12 +319,10 @@ static void extract_shentsize(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read shnum from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read shnum from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -378,12 +340,10 @@ static void extract_shnum(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
- * @brief Read shstrndx from ELF files and insert it in the structure passed in
- * argument
+ * @brief Read shstrndx from ELF files and insert it in the structure
  *
  * @param elf_file
  * @param header_informations
@@ -401,7 +361,6 @@ static void extract_shstrndx(FILE *elf_file, Elf32_Ehdr *header_informations) {
   } else {
     file_error(elf_file);
   }
-
 }
 
 /**
@@ -411,18 +370,17 @@ static void extract_shstrndx(FILE *elf_file, Elf32_Ehdr *header_informations) {
  */
 static void file_error(FILE *elf_file) {
   if (feof(elf_file)) {
-    unsigned char error_message[] =
-        "Error reading ELF file: unexpected end of file";
-    print_error(error_message);
+    print_error((unsigned char *)"End of file unexpected");
   } else if (ferror(elf_file)) {
-    unsigned char error_message[] = "Error reading elf files";
     perror("Error reading elf files");
-    print_error(error_message);
+    print_error((unsigned char *)"Error reading elf file");
+  } else {
+    print_error((unsigned char *)"Unknow error reading elf file");
   }
 }
 
 /**
- * @brief Return true if the file is in big endian, false else
+ * @brief Return true if the file is in big endian
  *
  * @param header_informations
  * @return true
