@@ -12,6 +12,7 @@
 #include "../include/display_elf_header.h"
 #include "../include/logger.h"
 #include <elf.h>
+#include <stdint.h>
 #include <stdio.h>
 
 // ! EM_MIPS_RS4_BE seems to be undeclared in elf.h (10 value)
@@ -32,7 +33,16 @@ static void display_shentsize(const Elf32_Half *shentsize);
 static void display_shnum(const Elf32_Half *shnum);
 static void display_shstrndx(const Elf32_Half *shstrndx);
 
+/**
+ * @brief Display all the informations in the elf structure
+ *
+ * @pre Elf structure correctly initiate
+ * @post Display all informations with traduction if necessary
+ *
+ * @param elf
+ */
 void display_elf_headers(const Elf32_Ehdr *elf) {
+  // Display all the informations
   display_ident(elf->e_ident);
   display_type(&elf->e_type);
   display_machine(&elf->e_machine);
@@ -47,8 +57,6 @@ void display_elf_headers(const Elf32_Ehdr *elf) {
   display_shentsize(&elf->e_shentsize);
   display_shnum(&elf->e_shnum);
   display_shstrndx(&elf->e_shstrndx);
-
-  return;
 }
 
 /**
@@ -118,6 +126,14 @@ static void display_ident(const unsigned char e_ident[]) {
   // EI_NINDENT:
   print_notification((unsigned char *)"e_ident size");
   printf("(%d)\n", e_ident[EI_NIDENT]);
+
+  // EI_OSABI:
+  if (e_ident[EI_OSABI] == ELFOSABI_ARM_AEABI) {
+    print_notification((unsigned char *)"Contains symbol versioning extension");
+  } else {
+    print_notification(
+        (unsigned char *)"Doesn't contains symbol versioning extension");
+  }
 
   return;
 }
@@ -229,9 +245,11 @@ static void display_version(const Elf32_Word *e_version) {
 static void display_entry(const Elf32_Addr *e_entry) {
   print_notification((unsigned char *)"Entry point:");
   if (*e_entry == 0) {
-    print_warning((unsigned char *)"No entry point");
+    print_notification((unsigned char *)"ARM code");
+  } else if (*e_entry == 1) {
+    print_notification((unsigned char *)"Thumb code");
   } else {
-    printf("%X\n", *e_entry);
+    print_notification((unsigned char *)"Reserved");
   }
 
   return;
@@ -276,6 +294,47 @@ static void display_shoff(const Elf32_Off *e_shoff) {
 static void display_flags(const Elf32_Word *flags) {
   print_notification((unsigned char *)"Flags:");
   printf("%X\n", *flags);
+
+  // Version ABI:
+  uint32_t version_mask = (*flags & (0xFF000000)) >> 24;
+  print_notification((unsigned char *)"Version ABI:");
+  printf("%d\n", version_mask);
+
+  // Contains BE-8 code
+  uint32_t is_conttains_BE_8_code = (*flags & (0x00F00000));
+  if (is_conttains_BE_8_code == 0x00800000) {
+    print_notification((unsigned char *)"Contains BE-8 code");
+  } else {
+    print_notification((unsigned char *)"Doesn't contains BE-8 code");
+  }
+
+  // Legacy code
+  uint32_t is_legacy_code = (*flags & (0x00F00FFF));
+  if (is_legacy_code == 0x00400FFF) {
+    print_notification((unsigned char *)"Legacy code");
+  } else {
+    print_notification((unsigned char *)"Not legacy code");
+  }
+
+  // Hard float :
+  uint32_t is_hard_float = (*flags & (0x00000F00));
+  if (is_hard_float == 0x00000400) {
+    print_notification((unsigned char *)"Hard float activate");
+  } else {
+    print_notification((unsigned char *)"Hard float desactivate");
+  }
+
+  // Soft float
+  uint32_t is_soft_float = (*flags & (0x00000F00));
+  if (is_soft_float == 0x00000200) {
+    print_notification((unsigned char *)"Soft float activate");
+  } else {
+    print_notification((unsigned char *)"Soft float desactivate");
+  }
+
+  // ! If both EF_ARM_ABI_FLOAT_XXXX bits are clear, conformance to the base
+  // procedure-call standard is implied.
+
   return;
 }
 
