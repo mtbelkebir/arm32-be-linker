@@ -8,9 +8,9 @@
 #include <stdio.h>
 
 
-Elf32_Shdr *extract_section_headers(FILE* f,uint16_t e_shentsize);
+Elf32_Shdr *extract_section_headers(FILE* f,uint32_t e_shoff , uint32_t e_phnum);
 
-void affichage(Elf32_Shdr SH);
+void affichage(Elf32_Shdr *SH,uint32_t e_phnum);
 #endif
 
 
