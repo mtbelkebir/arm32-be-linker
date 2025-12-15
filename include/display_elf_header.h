@@ -11,4 +11,12 @@
 
 #include <elf.h>
 
+/**
+ * @brief Display all the informations in the elf structure
+ *
+ * @pre Elf structure correctly initiate
+ * @post Display all informations with traduction if necessary
+ *
+ * @param elf
+ */
 void display_elf_headers(const Elf32_Ehdr *elf);

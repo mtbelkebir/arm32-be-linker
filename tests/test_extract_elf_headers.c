@@ -15,37 +15,40 @@
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
-  Elf32_Ehdr elf;
-  bool res = extract_elf_informations(argv[1], &elf);
+
+  FILE *elf_file = fopen(argv[1], "rb");
+  if (elf_file == NULL) {
+    printf("ERROR FILE");
+  }
+
+  Elf32_Ehdr elf = extract_elf_informations(elf_file);
 
   // ! Sans la fonction display:
-  if (res) {
-    printf("\n------Informations ELF------\n");
-    printf("Magic Number: ");
-    for (int i = 0; i < EI_NIDENT; i++) {
-      printf("[%x]", elf.e_ident[i]);
-    }
-    printf("\nType -> %x", elf.e_type);
-    printf("\nMachine -> %x", elf.e_machine);
-    printf("\nVersion -> %x", elf.e_version);
-    printf("\nEntry -> %x", elf.e_entry);
-    printf("\nPhoff -> %x", elf.e_phoff);
-    printf("\nShoff -> %x", elf.e_shoff);
-    printf("\nFlags -> %x", elf.e_flags);
-    printf("\nEhsize -> %x", elf.e_ehsize);
-    printf("\nPhentsize -> %x", elf.e_phentsize);
-    printf("\nPhnum -> %x", elf.e_phnum);
-    printf("\nShentsize -> %x", elf.e_shentsize);
-    printf("\nShnum -> %x", elf.e_shnum);
-    printf("\nShstrndx -> %x", elf.e_shstrndx);
-    printf("\n------------------------------\n");
+  printf("\n------Informations ELF------\n");
+  printf("Magic Number: ");
+  for (int i = 0; i < EI_NIDENT; i++) {
+    printf("[%x]", elf.e_ident[i]);
   }
+  printf("\nType -> %x", elf.e_type);
+  printf("\nMachine -> %x", elf.e_machine);
+  printf("\nVersion -> %x", elf.e_version);
+  printf("\nEntry -> %x", elf.e_entry);
+  printf("\nPhoff -> %x", elf.e_phoff);
+  printf("\nShoff -> %x", elf.e_shoff);
+  printf("\nFlags -> %x", elf.e_flags);
+  printf("\nEhsize -> %x", elf.e_ehsize);
+  printf("\nPhentsize -> %x", elf.e_phentsize);
+  printf("\nPhnum -> %x", elf.e_phnum);
+  printf("\nShentsize -> %x", elf.e_shentsize);
+  printf("\nShnum -> %x", elf.e_shnum);
+  printf("\nShstrndx -> %x", elf.e_shstrndx);
+  printf("\n------------------------------\n");
 
   // * Avec la fonction display:
 
-  if (res) {
-    display_elf_headers(&elf);
-  }
+  display_elf_headers(&elf);
+
+  fclose(elf_file);
 
   return 0;
 }
