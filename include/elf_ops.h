@@ -105,8 +105,38 @@ void __internal_display_elf_section();
 char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
 
 /**
- * @brief Displays all sections of the given Elf File
- * @pre f is not null
+ * @brief Displays all sections of the given ELF file in a formatted table.
+ *
+ * Prints a section header table matching the format of `readelf -S`, showing
+ * all sections with their properties including name, type, address, offset,
+ * size, flags, and other metadata.
+ *
+ * @param f Pointer to an Elf32_File structure opened with read_elf().
+ *
+ * @pre f is not NULL and contains valid section header data.
+ * @post Formatted section table printed to stdout.
+ *
+ * @note Section names are retrieved from the section header string table.
+ * @note Flags displayed: W=Write, A=Alloc, X=Exec, M=Merge, S=Strings, I=Info, L=Link.
+ * @note If a section name cannot be retrieved, an empty string is displayed.
+ *
+ * @see display_elf_section_contents() to display section contents.
  */
 void display_elf_sections(Elf32_File *f);
+
+/**
+ * @brief Display the contents of a section by name.
+ *
+ * Searches for a section with the given name in the ELF file and displays
+ * its raw contents as 32-bit words in hexadecimal format (4 words per line).
+ *
+ * @param section_name Name of the section to display (e.g., ".text", ".data")
+ * @param f Pointer to an Elf32_File structure opened with read_elf()
+ *
+ * @return 1 on success, -1 if section not found, 0 on I/O error
+ *
+ * @note The section contents are byte-swapped if necessary to match host endianness.
+ * @note Section names are matched exactly (case-sensitive).
+ */
+int display_elf_section_contents(const char *section_name, Elf32_File *f);
 #endif //_ELF_OPS_H

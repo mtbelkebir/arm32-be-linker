@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include "elf_ops.h"
 #include "debug.h"
 #include "extract_elf_header.h"
 #include "display_elf_header.h"
 #include "extract_elf_section.h"
+#include "util.h"
 
 Elf32_File *read_elf(const char *path)
 {
@@ -157,4 +159,66 @@ void display_elf_sections(Elf32_File *f)
         if (name && name[0] != '\0')
             free(name);
     }
+}
+
+int display_elf_section_contents(const char *section_name, Elf32_File *f)
+{
+    if (!f)
+        return 0;
+
+    uint16_t shnum = f->e_ehdr.e_shnum;
+    uint16_t i = 0;
+    while (i < shnum)
+    {
+        char *current_section_name = get_elf_section_name(&(f->e_shrdrs[i]), f);
+        int cmp = strcmp(section_name, current_section_name);
+        if (cmp == 0)
+        {
+            free(current_section_name);
+            break;
+        }
+        free(current_section_name);
+        i++;
+    }
+
+    if (i >= shnum)
+    {
+        printf("Section %s is not present in file\n", section_name);
+        return -1;
+    }
+    printf("Content of section %s : \n", section_name);
+    uint32_t section_size = f->e_shrdrs[i].sh_size;
+    uint32_t section_offset = f->e_shrdrs[i].sh_offset;
+    if (fseek(f->file, section_offset, SEEK_SET) != 0)
+    {
+        error("Unknown I/O error\n");
+        return 0;
+    }
+
+    for (uint32_t j = 0; j < section_size; j += 4)
+    {
+        uint32_t word;
+        if (fread(&word, 4, 1, f->file) != 1)
+        {
+            error("Unknown I/O error\n");
+            return 0;
+        }
+        word = byte_swap(word);
+
+        if (j % 4 == 0)
+        {
+            printf("%08x ", word);
+        }
+        else if (j % 4 == 3)
+        {
+            printf(" %08x\n", word);
+        }
+        else
+        {
+            printf(" %08x ", word);
+        }
+    }
+    printf("\n");
+
+    return 1;
 }
