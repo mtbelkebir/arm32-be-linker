@@ -139,4 +139,44 @@ void display_elf_sections(Elf32_File *f);
  * @note Section names are matched exactly (case-sensitive).
  */
 int display_elf_section_contents(const char *section_name, Elf32_File *f);
+
+/**
+ * @brief Extract all informations in a ELF file and return the structure
+ * contains all the informations
+ *
+ * @pre A file correctly open
+ * @post A Elf32_Ehdr with all informations insert from the ELF file
+ *
+ * @param elf_file
+ * @return Elf32_Ehdr
+ *
+ * @exception CLOSES THE ENTIRE PROGRAM IF THE ELF HEADER IS INVALID
+ */
+Elf32_Ehdr extract_elf_informations(FILE *elf_file);
+
+/**
+ * @brief Extract all the informations from the section table of a ELF File
+ *
+ * ! free() is required after using the structure
+ *
+ * @param elf_file
+ * @param e_shoff
+ * @param e_shnum
+ * @param e_shentsize
+ * @param e_ident
+ * @return Elf32_Shdr*
+ */
+Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
+                                    uint32_t e_shnum, uint32_t e_shentsize,
+                                    unsigned char e_ident[EI_NIDENT]);
+
+/**
+ * @brief Display all the informations in the elf structure
+ *
+ * @pre Elf structure correctly initiate
+ * @post Display all informations with traduction if necessary
+ *
+ * @param elf
+ */
+void display_elf_headers(const Elf32_Ehdr *elf);
 #endif //_ELF_OPS_H

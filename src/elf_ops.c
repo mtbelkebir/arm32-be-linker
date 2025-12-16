@@ -3,9 +3,6 @@
 #include <stdlib.h>
 #include "elf_ops.h"
 #include "debug.h"
-#include "extract_elf_header.h"
-#include "display_elf_header.h"
-#include "extract_elf_section.h"
 #include "util.h"
 
 Elf32_File *read_elf(const char *path)

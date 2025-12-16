@@ -9,8 +9,8 @@
  *
  */
 
-#include "../include/display_elf_header.h"
-#include "../include/logger.h"
+#include "elf_ops.h"
+#include "logger.h"
 #include <elf.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -41,7 +41,8 @@ static void display_shstrndx(const Elf32_Half *shstrndx);
  *
  * @param elf
  */
-void display_elf_headers(const Elf32_Ehdr *elf) {
+void display_elf_headers(const Elf32_Ehdr *elf)
+{
   // Display all the informations
   display_ident(elf->e_ident);
   display_type(&elf->e_type);
@@ -64,7 +65,8 @@ void display_elf_headers(const Elf32_Ehdr *elf) {
  *
  * @param e_ident
  */
-static void display_ident(const unsigned char e_ident[]) {
+static void display_ident(const unsigned char e_ident[])
+{
   print_notification((unsigned char *)"ELF Identification:");
 
   // Identification
@@ -76,7 +78,8 @@ static void display_ident(const unsigned char e_ident[]) {
 
   // Class
   print_notification((unsigned char *)"File class");
-  switch (e_ident[EI_CLASS]) {
+  switch (e_ident[EI_CLASS])
+  {
   case ELFCLASSNONE:
     print_warning((unsigned char *)"Class invalid !");
     break;
@@ -93,7 +96,8 @@ static void display_ident(const unsigned char e_ident[]) {
 
   // Data:
   print_notification((unsigned char *)"Data encoding");
-  switch (e_ident[EI_DATA]) {
+  switch (e_ident[EI_DATA])
+  {
   case ELFDATANONE:
     print_warning((unsigned char *)"Invalid data encoding !");
     break;
@@ -111,7 +115,8 @@ static void display_ident(const unsigned char e_ident[]) {
 
   // Version:
   print_notification((unsigned char *)"File version");
-  switch (e_ident[EI_VERSION]) {
+  switch (e_ident[EI_VERSION])
+  {
   case EV_CURRENT:
     printf("(%d)\n", EV_CURRENT);
     break;
@@ -128,9 +133,12 @@ static void display_ident(const unsigned char e_ident[]) {
   printf("(%d)\n", e_ident[EI_NIDENT]);
 
   // EI_OSABI:
-  if (e_ident[EI_OSABI] == ELFOSABI_ARM_AEABI) {
+  if (e_ident[EI_OSABI] == ELFOSABI_ARM_AEABI)
+  {
     print_notification((unsigned char *)"Contains symbol versioning extension");
-  } else {
+  }
+  else
+  {
     print_notification(
         (unsigned char *)"Doesn't contains symbol versioning extension");
   }
@@ -143,8 +151,10 @@ static void display_ident(const unsigned char e_ident[]) {
  *
  * @param e_type
  */
-static void display_type(const Elf32_Half *e_type) {
-  switch (*e_type) {
+static void display_type(const Elf32_Half *e_type)
+{
+  switch (*e_type)
+  {
   case ET_NONE:
     print_warning((unsigned char *)"No file type");
     break;
@@ -178,10 +188,12 @@ static void display_type(const Elf32_Half *e_type) {
  * ! EM_MIPS_RS4_BE seems to be undeclared in elf.h
  * @param e_machine
  */
-static void display_machine(const Elf32_Half *e_machine) {
+static void display_machine(const Elf32_Half *e_machine)
+{
   print_notification((unsigned char *)"Machine:");
 
-  switch (*e_machine) {
+  switch (*e_machine)
+  {
   case ET_NONE:
     print_warning((unsigned char *)"No machine");
     break;
@@ -224,10 +236,12 @@ static void display_machine(const Elf32_Half *e_machine) {
  *
  * @param e_version
  */
-static void display_version(const Elf32_Word *e_version) {
+static void display_version(const Elf32_Word *e_version)
+{
   print_notification((unsigned char *)"Version:");
 
-  switch (*e_version) {
+  switch (*e_version)
+  {
   case EV_NONE:
     print_warning((unsigned char *)"Invalid version");
     break;
@@ -242,13 +256,19 @@ static void display_version(const Elf32_Word *e_version) {
  *
  * @param e_entry
  */
-static void display_entry(const Elf32_Addr *e_entry) {
+static void display_entry(const Elf32_Addr *e_entry)
+{
   print_notification((unsigned char *)"Entry point:");
-  if (*e_entry == 0) {
+  if (*e_entry == 0)
+  {
     print_notification((unsigned char *)"ARM code");
-  } else if (*e_entry == 1) {
+  }
+  else if (*e_entry == 1)
+  {
     print_notification((unsigned char *)"Thumb code");
-  } else {
+  }
+  else
+  {
     print_notification((unsigned char *)"Reserved");
   }
 
@@ -260,11 +280,15 @@ static void display_entry(const Elf32_Addr *e_entry) {
  *
  * @param e_phoff
  */
-static void display_phoff(const Elf32_Off *e_phoff) {
+static void display_phoff(const Elf32_Off *e_phoff)
+{
   print_notification((unsigned char *)"Program header table's file offset");
-  if (*e_phoff == 0) {
+  if (*e_phoff == 0)
+  {
     print_warning((unsigned char *)"No offset");
-  } else {
+  }
+  else
+  {
     printf("%X\n", *e_phoff);
   }
 
@@ -276,11 +300,15 @@ static void display_phoff(const Elf32_Off *e_phoff) {
  *
  * @param e_shoff
  */
-static void display_shoff(const Elf32_Off *e_shoff) {
+static void display_shoff(const Elf32_Off *e_shoff)
+{
   print_notification((unsigned char *)"Section header table's file offset");
-  if (*e_shoff == 0) {
+  if (*e_shoff == 0)
+  {
     print_warning((unsigned char *)"No offset");
-  } else {
+  }
+  else
+  {
     printf("%d\n", *e_shoff);
   }
   return;
@@ -291,7 +319,8 @@ static void display_shoff(const Elf32_Off *e_shoff) {
  *
  * @param flags
  */
-static void display_flags(const Elf32_Word *flags) {
+static void display_flags(const Elf32_Word *flags)
+{
   print_notification((unsigned char *)"Flags:");
   printf("%X\n", *flags);
 
@@ -302,33 +331,45 @@ static void display_flags(const Elf32_Word *flags) {
 
   // Contains BE-8 code
   uint32_t is_conttains_BE_8_code = (*flags & (0x00F00000));
-  if (is_conttains_BE_8_code == 0x00800000) {
+  if (is_conttains_BE_8_code == 0x00800000)
+  {
     print_notification((unsigned char *)"Contains BE-8 code");
-  } else {
+  }
+  else
+  {
     print_notification((unsigned char *)"Doesn't contains BE-8 code");
   }
 
   // Legacy code
   uint32_t is_legacy_code = (*flags & (0x00F00FFF));
-  if (is_legacy_code == 0x00400FFF) {
+  if (is_legacy_code == 0x00400FFF)
+  {
     print_notification((unsigned char *)"Legacy code");
-  } else {
+  }
+  else
+  {
     print_notification((unsigned char *)"Not legacy code");
   }
 
   // Hard float :
   uint32_t is_hard_float = (*flags & (0x00000F00));
-  if (is_hard_float == 0x00000400) {
+  if (is_hard_float == 0x00000400)
+  {
     print_notification((unsigned char *)"Hard float activate");
-  } else {
+  }
+  else
+  {
     print_notification((unsigned char *)"Hard float desactivate");
   }
 
   // Soft float
   uint32_t is_soft_float = (*flags & (0x00000F00));
-  if (is_soft_float == 0x00000200) {
+  if (is_soft_float == 0x00000200)
+  {
     print_notification((unsigned char *)"Soft float activate");
-  } else {
+  }
+  else
+  {
     print_notification((unsigned char *)"Soft float desactivate");
   }
 
@@ -343,7 +384,8 @@ static void display_flags(const Elf32_Word *flags) {
  *
  * @param ehsize
  */
-static void display_ehsize(const Elf32_Half *ehsize) {
+static void display_ehsize(const Elf32_Half *ehsize)
+{
   print_notification((unsigned char *)"ELF header's size:");
   printf("%d\n", *ehsize);
   return;
@@ -354,7 +396,8 @@ static void display_ehsize(const Elf32_Half *ehsize) {
  *
  * @param phentsize
  */
-static void display_phentsize(const Elf32_Half *phentsize) {
+static void display_phentsize(const Elf32_Half *phentsize)
+{
   print_notification((unsigned char *)"Phentsize:");
   printf("%d\n", *phentsize);
   return;
@@ -365,11 +408,15 @@ static void display_phentsize(const Elf32_Half *phentsize) {
  *
  * @param phnum
  */
-static void display_phnum(const Elf32_Half *phnum) {
+static void display_phnum(const Elf32_Half *phnum)
+{
   print_notification((unsigned char *)"Phnum:");
-  if (*phnum == 0) {
+  if (*phnum == 0)
+  {
     print_warning((unsigned char *)"No program header table");
-  } else {
+  }
+  else
+  {
     printf("%d\n", *phnum);
   }
   return;
@@ -380,7 +427,8 @@ static void display_phnum(const Elf32_Half *phnum) {
  *
  * @param phnum
  */
-static void display_shentsize(const Elf32_Half *shentsize) {
+static void display_shentsize(const Elf32_Half *shentsize)
+{
   print_notification((unsigned char *)"Shentsize:");
   printf("%d\n", *shentsize);
   return;
@@ -391,11 +439,15 @@ static void display_shentsize(const Elf32_Half *shentsize) {
  *
  * @param shnum
  */
-static void display_shnum(const Elf32_Half *shnum) {
+static void display_shnum(const Elf32_Half *shnum)
+{
   print_notification((unsigned char *)"Shnum:");
-  if (*shnum == 0) {
+  if (*shnum == 0)
+  {
     print_warning((unsigned char *)"No section header table");
-  } else {
+  }
+  else
+  {
     printf("%d\n", *shnum);
   }
   return;
@@ -406,11 +458,15 @@ static void display_shnum(const Elf32_Half *shnum) {
  *
  * @param shstrndx
  */
-static void display_shstrndx(const Elf32_Half *shstrndx) {
+static void display_shstrndx(const Elf32_Half *shstrndx)
+{
   print_notification((unsigned char *)"Shstrndx:");
-  if (*shstrndx == SHN_UNDEF) {
+  if (*shstrndx == SHN_UNDEF)
+  {
     print_warning((unsigned char *)"No section name string table");
-  } else {
+  }
+  else
+  {
     printf("%d\n", *shstrndx);
   }
   return;

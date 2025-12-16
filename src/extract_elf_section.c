@@ -8,9 +8,9 @@
  * @copyright Copyright (c) 2025
  *
  */
-#include "../include/extract_elf_section.h"
-#include "../include/logger.h"
-#include "../util.h"
+#include "elf_ops.h"
+#include "logger.h"
+#include "util.h"
 #include <string.h>
 #include <elf.h>
 #include <stdbool.h>
