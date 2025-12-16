@@ -18,7 +18,7 @@
 #include <stdlib.h>
 
 // Manage section part:
-static void setData(const unsigned char e_ident[EI_DATA]);
+static void setData(const unsigned char data_type);
 static Elf32_Shdr extract_section(FILE *elf_file);
 
 // Extraction implementation:
@@ -46,9 +46,7 @@ unsigned char type_data;
  *
  * @param e_ident
  */
-static void setData(const unsigned char e_ident[EI_DATA]) {
-  type_data = e_ident[EI_DATA];
-}
+static void setData(const unsigned char data_type) { type_data = data_type; }
 
 /**
  * @brief Extract all the informations from the section table of a ELF File
@@ -66,13 +64,15 @@ Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
                                     uint32_t e_shnum, uint32_t e_shentsize,
                                     unsigned char e_ident[EI_DATA]) {
 
-  // ! Si le fichier est incomplet
+  // ! If the file is not correct
   if (fseek(elf_file, e_shoff, SEEK_SET) != 0) {
     return NULL;
   }
 
-  setData(&e_ident[EI_DATA]);
+  setData(e_ident[EI_DATA]);
 
+  // ! YOU MUST BE SURE THAT E_SHENTSIZE IS CORRECT
+  // * It will be a good idea to fix it to sizeof(Elf32_Shdr)
   Elf32_Shdr *sections = malloc(e_shentsize * e_shnum);
 
   for (int i = 0; i < e_shnum; i++) {
