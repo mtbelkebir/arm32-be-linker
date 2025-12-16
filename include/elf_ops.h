@@ -96,4 +96,11 @@ Elf32_Shdr __internal_extract_elf_section(FILE *elf_file, uint32_t e_shoff,
 // ! I don't know the params of this one
 void __internal_display_elf_section();
 
+/**
+ * @brief Get the elf section name object
+ *
+ * @return char* Name of the section, NULL in case of error, or if there's no section header string table
+ * To be freed by the user.
+ */
+char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
 #endif //_ELF_OPS_H

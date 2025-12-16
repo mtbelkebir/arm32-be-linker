@@ -1,10 +1,10 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "elf_ops.h"
 #include "debug.h"
 #include "extract_elf_header.h"
-#include "Section_header.h"
-#include <stdio.h>
 #include "display_elf_header.h"
-#include "Section_header.h"
+#include "extract_elf_section.h"
 
 Elf32_File *read_elf(const char *path)
 {
@@ -23,10 +23,14 @@ Elf32_File *read_elf(const char *path)
         return NULL;
     }
 
-    f->file = f;
+    f->file = associated_file;
 
-    f->e_ehdr = extract_elf_informations(f);
-    f->e_shrdrs = extract_section_headers(f, f->e_ehdr.e_shoff, f->e_ehdr.e_shnum);
+    f->e_ehdr = extract_elf_informations(associated_file);
+    f->e_shrdrs = extract_section_headers(associated_file,
+                                          f->e_ehdr.e_shoff,
+                                          f->e_ehdr.e_shnum,
+                                          f->e_ehdr.e_shentsize,
+                                          f->e_ehdr.e_ident);
 
     if (!f->e_shrdrs)
     {
@@ -60,5 +64,30 @@ void print_elf_header(Elf32_File *f)
 
 void print_section_table(Elf32_File *f)
 {
-    affichage(&(f->e_shrdrs), f->e_ehdr.e_shnum);
+}
+
+char *get_elf_section_name(Elf32_Shdr *shdr, Elf32_File *file)
+{
+    if (!shdr || !file || !file->e_shrdrs)
+        return NULL;
+
+    uint16_t strtab_idx = file->e_ehdr.e_shstrndx;
+    if (strtab_idx == SHN_UNDEF || strtab_idx >= file->e_ehdr.e_shnum)
+    {
+        return NULL;
+    }
+
+    Elf32_Shdr *strtab_shdr = &file->e_shrdrs[strtab_idx];
+    char *name = malloc(4096); // TODO: Actual names are not limited
+    if (fseek(file->file, strtab_shdr->sh_offset + shdr->sh_name, SEEK_SET) != 0)
+    {
+        free(name);
+        return NULL;
+    }
+    if (!fgets(name, 4096, file->file))
+    {
+        free(name);
+        return NULL;
+    }
+    return name;
 }
