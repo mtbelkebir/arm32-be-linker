@@ -30,7 +30,7 @@
  */
 Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
                                     uint32_t e_shnum, uint32_t e_shentsize,
-                                    unsigned char e_ident[EI_DATA]);
+                                    unsigned char e_ident[EI_NIDENT]);
 
 // ! Must be move
 // void affichage(Elf32_Shdr *SH, uint32_t e_shnum);
