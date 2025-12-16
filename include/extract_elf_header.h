@@ -27,6 +27,8 @@
  *
  * @param elf_file
  * @return Elf32_Ehdr
+ *
+ * @exception CLOSES THE ENTIRE PROGRAM IF THE ELF HEADER IS INVALID
  */
 Elf32_Ehdr extract_elf_informations(FILE *elf_file);
 
