@@ -16,9 +16,22 @@
 #include <stdint.h>
 #include <stdio.h>
 
+/**
+ * @brief Extract all the informations from the section table of a ELF File
+ *
+ * ! free() is required after using the structure
+ *
+ * @param elf_file
+ * @param e_shoff
+ * @param e_shnum
+ * @param e_shentsize
+ * @param e_ident
+ * @return Elf32_Shdr*
+ */
 Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
                                     uint32_t e_shnum, uint32_t e_shentsize,
                                     unsigned char e_ident[EI_DATA]);
 
-void affichage(Elf32_Shdr *SH, uint32_t e_shnum);
+// ! Must be move
+// void affichage(Elf32_Shdr *SH, uint32_t e_shnum);
 #endif
