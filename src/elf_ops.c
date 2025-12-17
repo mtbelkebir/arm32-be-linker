@@ -163,29 +163,12 @@ int display_elf_section_contents(const char *section_name, Elf32_File *f)
     if (!f)
         return 0;
 
-    uint16_t shnum = f->e_ehdr.e_shnum;
-    uint16_t i = 0;
-    while (i < shnum)
-    {
-        char *current_section_name = get_elf_section_name(&(f->e_shrdrs[i]), f);
-        int cmp = strcmp(section_name, current_section_name);
-        if (cmp == 0)
-        {
-            free(current_section_name);
-            break;
-        }
-        free(current_section_name);
-        i++;
-    }
-
-    if (i >= shnum)
-    {
-        printf("Section %s is not present in file\n", section_name);
+    Elf32_Shdr *section = get_shdr_by_name(section_name, f);
+    if (!section)
         return -1;
-    }
     printf("Content of section %s : \n", section_name);
-    uint32_t section_size = f->e_shrdrs[i].sh_size;
-    uint32_t section_offset = f->e_shrdrs[i].sh_offset;
+    uint32_t section_size = section->sh_size;
+    uint32_t section_offset = section->sh_offset;
     if (fseek(f->file, section_offset, SEEK_SET) != 0)
     {
         error("Unknown I/O error\n");
@@ -218,4 +201,40 @@ int display_elf_section_contents(const char *section_name, Elf32_File *f)
     printf("\n");
 
     return 1;
+}
+
+Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f)
+{
+    if (f == NULL)
+        return NULL;
+    if (section_number >= f->e_ehdr.e_shnum || section_number < 0)
+    {
+        return NULL;
+    }
+    return &(f->e_shrdrs[section_number]);
+}
+
+Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f)
+{
+    uint16_t shnum = f->e_ehdr.e_shnum;
+    uint16_t i = 0;
+    while (i < shnum)
+    {
+        char *current_section_name = get_elf_section_name(&(f->e_shrdrs[i]), f);
+        int cmp = strcmp(section_name, current_section_name);
+        if (cmp == 0)
+        {
+            free(current_section_name);
+            break;
+        }
+        free(current_section_name);
+        i++;
+    }
+
+    if (i >= shnum)
+    {
+        printf("Section %s is not present in file\n", section_name);
+        return NULL;
+    }
+    return &(f->e_shrdrs[i]);
 }
