@@ -58,7 +58,7 @@ void free_elf_file(Elf32_File *elf_file)
 
 void print_elf_header(Elf32_File *f)
 {
-    display_elf_headers(&(f->e_ehdr));
+    __display_elf_headers(&(f->e_ehdr));
 }
 
 void print_section_table(Elf32_File *f)

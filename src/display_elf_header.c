@@ -2,472 +2,288 @@
  * @file display_elf_headers.c
  * @author DUC Corentin
  * @brief Implements functions to display headers from ELF files
- * @version 0.1
+ * @version 0.2
  * @date 2025-12-14
  *
  * @copyright Copyright (c) 2025
  *
  */
 
-#include "elf_ops.h"
-#include "logger.h"
 #include <elf.h>
 #include <stdint.h>
 #include <stdio.h>
 
-// ! EM_MIPS_RS4_BE seems to be undeclared in elf.h (10 value)
 #define EM_MIPS_RS4_BE 0xA
-
-static void display_ident(const unsigned char e_ident[]);
-static void display_type(const Elf32_Half *e_type);
-static void display_machine(const Elf32_Half *e_machine);
-static void display_version(const Elf32_Word *e_version);
-static void display_entry(const Elf32_Addr *e_entry);
-static void display_phoff(const Elf32_Off *e_phoff);
-static void display_shoff(const Elf32_Off *e_shoff);
-static void display_flags(const Elf32_Word *flags);
-static void display_ehsize(const Elf32_Half *ehsize);
-static void display_phentsize(const Elf32_Half *phentsize);
-static void display_phnum(const Elf32_Half *phnum);
-static void display_shentsize(const Elf32_Half *shentsize);
-static void display_shnum(const Elf32_Half *shnum);
-static void display_shstrndx(const Elf32_Half *shstrndx);
 
 /**
  * @brief Display all the informations in the elf structure
  *
- * @pre Elf structure correctly initiate
- * @post Display all informations with traduction if necessary
+ * @pre Elf structure correctly initiated
+ * @post Display all informations with translation if necessary
  *
  * @param elf
  */
-void display_elf_headers(const Elf32_Ehdr *elf)
+void __display_elf_headers(const Elf32_Ehdr *elf)
 {
-  // Display all the informations
-  display_ident(elf->e_ident);
-  display_type(&elf->e_type);
-  display_machine(&elf->e_machine);
-  display_version(&elf->e_version);
-  display_entry(&elf->e_entry);
-  display_phoff(&elf->e_phoff);
-  display_shoff(&elf->e_shoff);
-  display_flags(&elf->e_flags);
-  display_ehsize(&elf->e_ehsize);
-  display_phentsize(&elf->e_phentsize);
-  display_phnum(&elf->e_phnum);
-  display_shentsize(&elf->e_shentsize);
-  display_shnum(&elf->e_shnum);
-  display_shstrndx(&elf->e_shstrndx);
-}
+  printf("ELF Header:\n");
+  printf("  Magic:   ");
+  for (int i = 0; i < EI_NIDENT; i++)
+  {
+    if (i >= 4 && i < 16)
+      continue;
+    printf("%02x ", elf->e_ident[i]);
+  }
+  printf("\n");
 
-/**
- * @brief Display all informations in the e_ident array
- *
- * @param e_ident
- */
-static void display_ident(const unsigned char e_ident[])
-{
-  print_notification((unsigned char *)"ELF Identification:");
-
-  // Identification
-  print_notification((unsigned char *)"File identification");
-  printf("EI_MAG0 -> (%X)\n", e_ident[EI_MAG0]);
-  printf("EI_MAG1 -> (%c)\n", e_ident[EI_MAG1]);
-  printf("EI_MAG2 -> (%c)\n", e_ident[EI_MAG2]);
-  printf("EI_MAG3 -> (%c)\n", e_ident[EI_MAG3]);
-
-  // Class
-  print_notification((unsigned char *)"File class");
-  switch (e_ident[EI_CLASS])
+  printf("  %-34s ", "Class:");
+  switch (elf->e_ident[EI_CLASS])
   {
   case ELFCLASSNONE:
-    print_warning((unsigned char *)"Class invalid !");
+    printf("Invalid class\n");
     break;
   case ELFCLASS32:
-    print_notification((unsigned char *)"32-bit objects");
+    printf("ELF32\n");
     break;
   case ELFCLASS64:
-    print_notification((unsigned char *)"64-bit objects");
+    printf("ELF64\n");
     break;
   default:
-    print_warning(
-        (unsigned char *)"La classe ne correspond à aucun type prédéfinis !");
+    printf("Unknown (%d)\n", elf->e_ident[EI_CLASS]);
   }
 
-  // Data:
-  print_notification((unsigned char *)"Data encoding");
-  switch (e_ident[EI_DATA])
+  printf("  %-34s ", "Data:");
+  switch (elf->e_ident[EI_DATA])
   {
   case ELFDATANONE:
-    print_warning((unsigned char *)"Invalid data encoding !");
+    printf("Invalid data encoding\n");
     break;
   case ELFDATA2LSB:
-    print_notification((unsigned char *)"Little Endian");
+    printf("2's complement, little endian\n");
     break;
   case ELFDATA2MSB:
-    print_notification((unsigned char *)"Big Endian");
+    printf("2's complement, big endian\n");
     break;
   default:
-    print_warning(
-        (unsigned char
-             *)"La data encodé ne correspond à aucun type prédéfinis !");
+    printf("Unknown (%d)\n", elf->e_ident[EI_DATA]);
   }
 
-  // Version:
-  print_notification((unsigned char *)"File version");
-  switch (e_ident[EI_VERSION])
-  {
-  case EV_CURRENT:
-    printf("(%d)\n", EV_CURRENT);
-    break;
-  default:
-    print_warning((unsigned char *)"La version n'est pas bonne !");
-  }
-
-  // EI_PAD:
-  print_notification((unsigned char *)"File pad");
-  printf("(%d)\n", e_ident[EI_PAD]);
-
-  // EI_NINDENT:
-  print_notification((unsigned char *)"e_ident size");
-  printf("(%d)\n", e_ident[EI_NIDENT]);
-
-  // EI_OSABI:
-  if (e_ident[EI_OSABI] == ELFOSABI_ARM_AEABI)
-  {
-    print_notification((unsigned char *)"Contains symbol versioning extension");
-  }
-  else
-  {
-    print_notification(
-        (unsigned char *)"Doesn't contains symbol versioning extension");
-  }
-
-  return;
-}
-
-/**
- * @brief Display the type's file depending on the e_type
- *
- * @param e_type
- */
-static void display_type(const Elf32_Half *e_type)
-{
-  switch (*e_type)
-  {
-  case ET_NONE:
-    print_warning((unsigned char *)"No file type");
-    break;
-  case ET_REL:
-    print_notification((unsigned char *)"Relocatable file");
-    break;
-  case ET_EXEC:
-    print_notification((unsigned char *)"Executable file");
-    break;
-  case ET_DYN:
-    print_notification((unsigned char *)"Shared file");
-    break;
-  case ET_CORE:
-    print_notification((unsigned char *)"Core file");
-    break;
-  case ET_LOPROC:
-    print_warning((const unsigned char *)"Processor specific start");
-    break;
-  case ET_HIPROC:
-    print_warning((const unsigned char *)"Processor specific end");
-    break;
-  default:
-    print_warning((unsigned char *)"File type not defined !");
-  }
-
-  return;
-}
-
-/**
- * @brief Display the machine's file depending on the e_machine
- * ! EM_MIPS_RS4_BE seems to be undeclared in elf.h
- * @param e_machine
- */
-static void display_machine(const Elf32_Half *e_machine)
-{
-  print_notification((unsigned char *)"Machine:");
-
-  switch (*e_machine)
-  {
-  case ET_NONE:
-    print_warning((unsigned char *)"No machine");
-    break;
-  case EM_M32:
-    print_notification((unsigned char *)"AT&T WE 32100");
-    break;
-  case EM_SPARC:
-    print_notification((unsigned char *)"SPARC");
-    break;
-  case EM_386:
-    print_notification((unsigned char *)"Intel Architecture");
-    break;
-  case EM_68K:
-    print_notification((unsigned char *)"Motorola 68000");
-    break;
-  case EM_88K:
-    print_notification((unsigned char *)"Motorola 88000");
-    break;
-  case EM_860:
-    print_notification((unsigned char *)"Intel 80860");
-    break;
-  case EM_MIPS:
-    print_notification((unsigned char *)"MIPS RS3000 Big-Endian");
-    break;
-  case EM_MIPS_RS4_BE:
-    print_notification((unsigned char *)"MIPS RS4000 Big-Endian");
-    break;
-  case EM_ARM:
-    print_notification((unsigned char *)"ARM");
-    break;
-  default:
-    print_warning((unsigned char *)"Reserved for futur use");
-  }
-
-  return;
-}
-
-/**
- * @brief Display the version's file depending on the e_version
- *
- * @param e_version
- */
-static void display_version(const Elf32_Word *e_version)
-{
-  print_notification((unsigned char *)"Version:");
-
-  switch (*e_version)
+  printf("  %-34s ", "Version:");
+  switch (elf->e_ident[EI_VERSION])
   {
   case EV_NONE:
-    print_warning((unsigned char *)"Invalid version");
+    printf("Invalid version\n");
     break;
   case EV_CURRENT:
-    print_notification((unsigned char *)"Current version");
+    printf("1 (current)\n");
+    break;
+  default:
+    printf("%d\n", elf->e_ident[EI_VERSION]);
   }
-  return;
-}
 
-/**
- * @brief Display the entry's file depending on the e_entry
- *
- * @param e_entry
- */
-static void display_entry(const Elf32_Addr *e_entry)
-{
-  print_notification((unsigned char *)"Entry point:");
-  if (*e_entry == 0)
+  printf("  %-34s ", "OS/ABI:");
+  switch (elf->e_ident[EI_OSABI])
   {
-    print_notification((unsigned char *)"ARM code");
+  case ELFOSABI_SYSV:
+    printf("UNIX - System V\n");
+    break;
+  case ELFOSABI_HPUX:
+    printf("HP-UX\n");
+    break;
+  case ELFOSABI_NETBSD:
+    printf("NetBSD\n");
+    break;
+  case ELFOSABI_LINUX:
+    printf("Linux\n");
+    break;
+  case ELFOSABI_SOLARIS:
+    printf("Sun Solaris\n");
+    break;
+  case ELFOSABI_AIX:
+    printf("IBM AIX\n");
+    break;
+  case ELFOSABI_IRIX:
+    printf("SGI Irix\n");
+    break;
+  case ELFOSABI_FREEBSD:
+    printf("FreeBSD\n");
+    break;
+  case ELFOSABI_TRU64:
+    printf("Compaq TRU64 UNIX\n");
+    break;
+  case ELFOSABI_MODESTO:
+    printf("Novell Modesto\n");
+    break;
+  case ELFOSABI_OPENBSD:
+    printf("OpenBSD\n");
+    break;
+  case ELFOSABI_ARM_AEABI:
+    printf("ARM EABI\n");
+    break;
+  case ELFOSABI_ARM:
+    printf("ARM\n");
+    break;
+  case ELFOSABI_STANDALONE:
+    printf("Standalone (embedded) application\n");
+    break;
+  default:
+    printf("<unknown: %d>\n", elf->e_ident[EI_OSABI]);
   }
-  else if (*e_entry == 1)
+
+  printf("  %-34s %d\n", "ABI Version:", elf->e_ident[EI_ABIVERSION]);
+
+  printf("  %-34s ", "Type:");
+  switch (elf->e_type)
   {
-    print_notification((unsigned char *)"Thumb code");
+  case ET_NONE:
+    printf("NONE (No file type)\n");
+    break;
+  case ET_REL:
+    printf("REL (Relocatable file)\n");
+    break;
+  case ET_EXEC:
+    printf("EXEC (Executable file)\n");
+    break;
+  case ET_DYN:
+    printf("DYN (Shared object file)\n");
+    break;
+  case ET_CORE:
+    printf("CORE (Core file)\n");
+    break;
+  case ET_LOPROC:
+    printf("<processor specific>\n");
+    break;
+  case ET_HIPROC:
+    printf("<processor specific>\n");
+    break;
+  default:
+    if (elf->e_type >= ET_LOOS && elf->e_type <= ET_HIOS)
+      printf("OS Specific: (%x)\n", elf->e_type);
+    else if (elf->e_type >= ET_LOPROC && elf->e_type <= ET_HIPROC)
+      printf("Processor Specific: (%x)\n", elf->e_type);
+    else
+      printf("Unknown (%x)\n", elf->e_type);
+  }
+
+  printf("  %-34s ", "Machine:");
+  switch (elf->e_machine)
+  {
+  case EM_NONE:
+    printf("No machine\n");
+    break;
+  case EM_M32:
+    printf("AT&T WE 32100\n");
+    break;
+  case EM_SPARC:
+    printf("SUN SPARC\n");
+    break;
+  case EM_386:
+    printf("Intel 80386\n");
+    break;
+  case EM_68K:
+    printf("Motorola m68k family\n");
+    break;
+  case EM_88K:
+    printf("Motorola m88k family\n");
+    break;
+  case EM_860:
+    printf("Intel 80860\n");
+    break;
+  case EM_MIPS:
+    printf("MIPS R3000 big-endian\n");
+    break;
+  case EM_MIPS_RS4_BE:
+    printf("MIPS R4000 big-endian\n");
+    break;
+  case EM_ARM:
+    printf("ARM\n");
+    break;
+  case EM_X86_64:
+    printf("Advanced Micro Devices X86-64\n");
+    break;
+  case EM_AARCH64:
+    printf("ARM AARCH64\n");
+    break;
+  case EM_RISCV:
+    printf("RISC-V\n");
+    break;
+  default:
+    printf("Unknown machine (%d)\n", elf->e_machine);
+  }
+
+  printf("  %-34s ", "Version:");
+  switch (elf->e_version)
+  {
+  case EV_NONE:
+    printf("Invalid version\n");
+    break;
+  case EV_CURRENT:
+    printf("0x1\n");
+    break;
+  default:
+    printf("%#x\n", elf->e_version);
+  }
+
+  printf("  %-34s 0x%08x\n", "Entry point address:", elf->e_entry);
+  printf("  %-34s %u (bytes into file)\n", "Start of program headers:", elf->e_phoff);
+  printf("  %-34s %u (bytes into file)\n", "Start of section headers:", elf->e_shoff);
+  printf("  %-34s 0x%08x\n", "Flags:", elf->e_flags);
+  printf("  %-34s %u (bytes)\n", "Size of this header:", elf->e_ehsize);
+  printf("  %-34s %u (bytes)\n", "Size of program headers:", elf->e_phentsize);
+  printf("  %-34s %u\n", "Number of program headers:", elf->e_phnum);
+  printf("  %-34s %u (bytes)\n", "Size of section headers:", elf->e_shentsize);
+  printf("  %-34s %u\n", "Number of section headers:", elf->e_shnum);
+
+  printf("  %-34s ", "Section header string table index:");
+  if (elf->e_shstrndx == SHN_UNDEF)
+  {
+    printf("<none>\n");
   }
   else
   {
-    print_notification((unsigned char *)"Reserved");
+    printf("%u\n", elf->e_shstrndx);
   }
 
-  return;
-}
+  if (elf->e_flags != 0 && elf->e_machine == EM_ARM)
+  {
+    printf("\n  ARM-specific flags:\n");
 
-/**
- * @brief Display the phoff's file depending on the e_phoff
- *
- * @param e_phoff
- */
-static void display_phoff(const Elf32_Off *e_phoff)
-{
-  print_notification((unsigned char *)"Program header table's file offset");
-  if (*e_phoff == 0)
-  {
-    print_warning((unsigned char *)"No offset");
-  }
-  else
-  {
-    printf("%X\n", *e_phoff);
-  }
+    uint32_t version_mask = (elf->e_flags & 0xFF000000) >> 24;
+    if (version_mask)
+    {
+      printf("    Version5 ABI: %d\n", version_mask);
+    }
 
-  return;
-}
+    if (elf->e_flags & 0x00800000)
+    {
+      printf("    BE-8\n");
+    }
 
-/**
- * @brief Display the shoff's file depending on the e_shoff
- *
- * @param e_shoff
- */
-static void display_shoff(const Elf32_Off *e_shoff)
-{
-  print_notification((unsigned char *)"Section header table's file offset");
-  if (*e_shoff == 0)
-  {
-    print_warning((unsigned char *)"No offset");
-  }
-  else
-  {
-    printf("%d\n", *e_shoff);
-  }
-  return;
-}
+    if (elf->e_flags & 0x00400000)
+    {
+      printf("    Legacy code\n");
+    }
 
-/**
- * @brief Display the flags' file depending on the flags
- *
- * @param flags
- */
-static void display_flags(const Elf32_Word *flags)
-{
-  print_notification((unsigned char *)"Flags:");
-  printf("%X\n", *flags);
-
-  // Version ABI:
-  uint32_t version_mask = (*flags & (0xFF000000)) >> 24;
-  print_notification((unsigned char *)"Version ABI:");
-  printf("%d\n", version_mask);
-
-  // Contains BE-8 code
-  uint32_t is_conttains_BE_8_code = (*flags & (0x00F00000));
-  if (is_conttains_BE_8_code == 0x00800000)
-  {
-    print_notification((unsigned char *)"Contains BE-8 code");
+    uint32_t float_abi = elf->e_flags & 0x00000F00;
+    switch (float_abi)
+    {
+    case 0x00000000:
+      printf("    Float ABI: Soft float (base standard)\n");
+      break;
+    case 0x00000100:
+      printf("    Float ABI: Soft float\n");
+      break;
+    case 0x00000200:
+      printf("    Float ABI: Soft float (VFP)\n");
+      break;
+    case 0x00000300:
+      printf("    Float ABI: Hard float (VFP)\n");
+      break;
+    case 0x00000400:
+      printf("    Float ABI: Hard float\n");
+      break;
+    default:
+      if (float_abi)
+        printf("    Float ABI: Unknown (%#x)\n", float_abi);
+    }
   }
-  else
-  {
-    print_notification((unsigned char *)"Doesn't contains BE-8 code");
-  }
-
-  // Legacy code
-  uint32_t is_legacy_code = (*flags & (0x00F00FFF));
-  if (is_legacy_code == 0x00400FFF)
-  {
-    print_notification((unsigned char *)"Legacy code");
-  }
-  else
-  {
-    print_notification((unsigned char *)"Not legacy code");
-  }
-
-  // Hard float :
-  uint32_t is_hard_float = (*flags & (0x00000F00));
-  if (is_hard_float == 0x00000400)
-  {
-    print_notification((unsigned char *)"Hard float activate");
-  }
-  else
-  {
-    print_notification((unsigned char *)"Hard float desactivate");
-  }
-
-  // Soft float
-  uint32_t is_soft_float = (*flags & (0x00000F00));
-  if (is_soft_float == 0x00000200)
-  {
-    print_notification((unsigned char *)"Soft float activate");
-  }
-  else
-  {
-    print_notification((unsigned char *)"Soft float desactivate");
-  }
-
-  // ! If both EF_ARM_ABI_FLOAT_XXXX bits are clear, conformance to the base
-  // procedure-call standard is implied.
-
-  return;
-}
-
-/**
- * @brief Display the size of ELF header's file depending on the ehsize
- *
- * @param ehsize
- */
-static void display_ehsize(const Elf32_Half *ehsize)
-{
-  print_notification((unsigned char *)"ELF header's size:");
-  printf("%d\n", *ehsize);
-  return;
-}
-
-/**
- * @brief Display the size of one entry from the file depending on the phentsize
- *
- * @param phentsize
- */
-static void display_phentsize(const Elf32_Half *phentsize)
-{
-  print_notification((unsigned char *)"Phentsize:");
-  printf("%d\n", *phentsize);
-  return;
-}
-
-/**
- * @brief Display the phnum's file depending on the phnum
- *
- * @param phnum
- */
-static void display_phnum(const Elf32_Half *phnum)
-{
-  print_notification((unsigned char *)"Phnum:");
-  if (*phnum == 0)
-  {
-    print_warning((unsigned char *)"No program header table");
-  }
-  else
-  {
-    printf("%d\n", *phnum);
-  }
-  return;
-}
-
-/**
- * @brief Display the shentsize's file depending on the shentsize
- *
- * @param phnum
- */
-static void display_shentsize(const Elf32_Half *shentsize)
-{
-  print_notification((unsigned char *)"Shentsize:");
-  printf("%d\n", *shentsize);
-  return;
-}
-
-/**
- * @brief Display the shnum's file depending on the shnum
- *
- * @param shnum
- */
-static void display_shnum(const Elf32_Half *shnum)
-{
-  print_notification((unsigned char *)"Shnum:");
-  if (*shnum == 0)
-  {
-    print_warning((unsigned char *)"No section header table");
-  }
-  else
-  {
-    printf("%d\n", *shnum);
-  }
-  return;
-}
-
-/**
- * @brief Display the shstrndx's file depending on the shstrndx
- *
- * @param shstrndx
- */
-static void display_shstrndx(const Elf32_Half *shstrndx)
-{
-  print_notification((unsigned char *)"Shstrndx:");
-  if (*shstrndx == SHN_UNDEF)
-  {
-    print_warning((unsigned char *)"No section name string table");
-  }
-  else
-  {
-    printf("%d\n", *shstrndx);
-  }
-  return;
 }
