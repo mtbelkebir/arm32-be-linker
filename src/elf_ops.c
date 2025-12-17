@@ -95,7 +95,8 @@ char *get_elf_section_name_unlimited(Elf32_Shdr *section, int target_id,
   return section_name;
 }
 
-char *get_elf_section_name(Elf32_Shdr *shdr, Elf32_File *file) {
+//! PATCH (below)
+/*char *get_elf_section_name(Elf32_Shdr *shdr, Elf32_File *file) {
   if (!shdr || !file || !file->e_shrdrs)
     return NULL;
 
@@ -116,7 +117,7 @@ char *get_elf_section_name(Elf32_Shdr *shdr, Elf32_File *file) {
     return NULL;
   }
   return name;
-}
+}*/
 
 void display_elf_sections(Elf32_File *f) {
   if (!f)
