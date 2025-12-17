@@ -178,8 +178,7 @@ Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
  *
  * @param elf
  */
-void display_elf_headers(const Elf32_Ehdr *elf);
-
+void __display_elf_headers(const Elf32_Ehdr *elf);
 /**
  * @brief Get the shdr by name object
  *
