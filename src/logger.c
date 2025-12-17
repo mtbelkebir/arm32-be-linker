@@ -9,10 +9,9 @@
  *
  */
 
-#include "logger.h"
+#include "../include/logger.h"
 #include <stdio.h>
 #include <stdlib.h>
-
 
 void print_error(const unsigned char message[]) {
   printf("\033[91m[ ❌ ERROR ] %s\033[0m\n", message);

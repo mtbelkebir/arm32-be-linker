@@ -21,14 +21,13 @@ Contact: Guillaume.Huard@imag.fr
          38330 Montbonnot Saint-Martin
 */
 #include "debug.h"
+#include "elf_ops.h"
 #include <elf.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "elf_ops.h"
 
-void usage(char *name)
-{
+void usage(char *name) {
   fprintf(stderr,
           "Usage:\n"
           "%s [ --help ] [ --option1 value ] [ --option2 value ] [ --debug "
@@ -39,8 +38,7 @@ void usage(char *name)
           name);
 }
 
-void sample_function(char *option1, char *option2)
-{
+void sample_function(char *option1, char *option2) {
   debug("Beginning of the sample function\n");
   debug("Given values are [ %s ] and [ %s ], time to print them:\n", option1,
         option2);
@@ -49,15 +47,13 @@ void sample_function(char *option1, char *option2)
   debug("End of the sample function\n");
 }
 
-void header_elf(FILE *elf_file)
-{
+void header_elf(FILE *elf_file) {
   Elf32_Ehdr elf = extract_elf_informations(elf_file);
 
   display_elf_headers(&elf);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int opt;
 
   struct option longopts[] = {{"debug", required_argument, NULL, 'd'},
@@ -69,10 +65,8 @@ int main(int argc, char *argv[])
 
   char *filename_obj = NULL;
 
-  while ((opt = getopt_long(argc, argv, "1:2:e:d:h", longopts, NULL)) != -1)
-  {
-    switch (opt)
-    {
+  while ((opt = getopt_long(argc, argv, "1:2:e:d:h", longopts, NULL)) != -1) {
+    switch (opt) {
     case '1':
       break;
     case '2':
@@ -89,9 +83,10 @@ int main(int argc, char *argv[])
       filename_obj = optarg;
 
       Elf32_File *f2 = read_elf(filename_obj);
-      for (int i = 0; i < f2->e_ehdr.e_shnum; ++i)
-      {
-        printf("%s\n", get_elf_section_name(&(f2->e_shrdrs[i]), f2));
+      for (int i = 0; i < f2->e_ehdr.e_shnum; ++i) {
+        // printf("%s\n", get_elf_section_name(&(f2->e_shrdrs[i]), f2));
+        printf("%s\n", get_elf_section_name_unlimited(
+                           f2->e_shrdrs, i, f2->e_ehdr.e_shstrndx, f2->file));
       }
       free_elf_file(f2);
       break;
