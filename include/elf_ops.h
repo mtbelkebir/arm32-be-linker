@@ -102,10 +102,14 @@ void __internal_display_elf_section();
 /**
  * @brief Get the elf section name object
  *
- * @return char* Name of the section, NULL in case of error, or if there's no
- * section header string table To be freed by the user.
+ * @param section
+ * @param target_id
+ * @param e_shstrndx
+ * @param elf_file
+ * @return char*
  */
-// char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
+char *get_elf_section_name_unlimited(Elf32_Shdr *section, int target_id,
+                                     Elf32_Half e_shstrndx, FILE *elf_file);
 
 /**
  * @brief Displays all sections of the given ELF file in a formatted table.
@@ -185,6 +189,4 @@ Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
  */
 void display_elf_headers(const Elf32_Ehdr *elf);
 
-char *get_elf_section_name_unlimited(Elf32_Shdr *section, int target_id,
-                                     Elf32_Half e_shstrndx, FILE *elf_file);
 #endif //_ELF_OPS_H

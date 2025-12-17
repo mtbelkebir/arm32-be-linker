@@ -95,30 +95,6 @@ char *get_elf_section_name_unlimited(Elf32_Shdr *section, int target_id,
   return section_name;
 }
 
-//! PATCH (below)
-/*char *get_elf_section_name(Elf32_Shdr *shdr, Elf32_File *file) {
-  if (!shdr || !file || !file->e_shrdrs)
-    return NULL;
-
-  uint16_t strtab_idx = file->e_ehdr.e_shstrndx;
-  if (strtab_idx == SHN_UNDEF || strtab_idx >= file->e_ehdr.e_shnum) {
-    return NULL;
-  }
-
-  Elf32_Shdr *strtab_shdr = &file->e_shrdrs[strtab_idx];
-  char *name = malloc(4096); // TODO: Actual names are not limited
-  if (fseek(file->file, strtab_shdr->sh_offset + shdr->sh_name, SEEK_SET) !=
-      0) {
-    free(name);
-    return NULL;
-  }
-  if (!fgets(name, 4096, file->file)) {
-    free(name);
-    return NULL;
-  }
-  return name;
-}*/
-
 void display_elf_sections(Elf32_File *f) {
   if (!f)
     return;
