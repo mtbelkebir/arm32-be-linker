@@ -53,7 +53,7 @@ void header_elf(FILE *elf_file)
 {
   Elf32_Ehdr elf = extract_elf_informations(elf_file);
 
-  display_elf_headers(&elf);
+  __display_elf_headers(&elf);
 }
 
 int main(int argc, char *argv[])

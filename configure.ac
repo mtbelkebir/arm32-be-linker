@@ -10,6 +10,7 @@ AC_CONFIG_SRCDIR([debug.c])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_RANLIB
 dnl autoconf >= 2.70 changes AC_PROG_LEX macro
 dnl it would become
 dnl AC_PROG_LEX([yywrap])
