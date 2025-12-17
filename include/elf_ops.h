@@ -105,7 +105,7 @@ void __internal_display_elf_section();
  * @return char* Name of the section, NULL in case of error, or if there's no
  * section header string table To be freed by the user.
  */
-char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
+// char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
 
 /**
  * @brief Displays all sections of the given ELF file in a formatted table.
