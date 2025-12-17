@@ -17,7 +17,7 @@ typedef struct Elf32_File {
   Elf32_Ehdr e_ehdr; /**< Parsed ELF header (host endianness). */
   Elf32_Shdr *
       e_shrdrs; /**< Array of section headers (heap-allocated), NULL if none. */
-  Elf32_Sym sym;
+  Elf32_Sym *sym;
   // TODO: Check if there aren't more required fields
 } Elf32_File;
 
@@ -207,7 +207,7 @@ Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f);
  */
 Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f);
 
-Elf32_Sym extract_sym(Elf32_File *f);
+Elf32_Sym *extract_sym(Elf32_File *f);
 
 void display_sym_tab(Elf32_File *f);
 #endif //_ELF_OPS_H

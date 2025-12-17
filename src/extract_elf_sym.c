@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 // Manage sym part:
+static Elf32_Sym extract_sym_once(Elf32_File *f);
 static void extract_sym_name(FILE *elf_file, Elf32_Sym *sym);
 static void extract_sym_value(FILE *elf_file, Elf32_Sym *sym);
 static void extract_sym_size(FILE *elf_file, Elf32_Sym *sym);
@@ -42,6 +43,32 @@ static unsigned char type_data;
  */
 static void setData(const unsigned char data_type) { type_data = data_type; }
 
+Elf32_Sym *extract_sym(Elf32_File *f) {
+
+  // Define endianess
+  setData(f->e_ehdr.e_ident[EI_DATA]);
+
+  Elf32_Shdr *sym_section = get_shdr_by_name(".symtab", f);
+
+  // Déplacement jusqu'à la table des symboles:
+  if (fseek(f->file, sym_section->sh_offset, SEEK_SET) != 0) {
+    printf("Déplacement impossible !");
+    exit(1);
+  }
+
+  int nombre_entree_table_symbole =
+      sym_section->sh_size / sym_section->sh_entsize;
+
+  // Create the table of symbols
+  Elf32_Sym *sym_tab = malloc(sizeof(Elf32_Sym) * nombre_entree_table_symbole);
+
+  for (int i = 0; i < nombre_entree_table_symbole; i++) {
+    sym_tab[i] = extract_sym_once(f);
+  }
+
+  return sym_tab;
+}
+
 /**
  * @brief Read, extract and manage the endianess of all the informations and
  * stock it in a Elf32_Sym struct and return it
@@ -50,19 +77,10 @@ static void setData(const unsigned char data_type) { type_data = data_type; }
  * @param shdr
  * @return Elf32_Sym
  */
-Elf32_Sym extract_sym(Elf32_File *f) {
-
-  setData(f->e_ehdr.e_ident[EI_DATA]);
-
-  Elf32_Shdr *sym_tab = get_shdr_by_name(".symtab", f);
-
-  // Déplacement jusqu'à la table des symboles:
-  if (fseek(f->file, sym_tab->sh_offset, SEEK_SET) != 0) {
-    printf("Déplacement impossible !");
-    exit(1);
-  }
-
-  Elf32_Sym sym;
+static Elf32_Sym extract_sym_once(Elf32_File *f) {
+  // ! Laisser {0} sinon le compilateur prends peur que certains attributs soit
+  // retourné n'importe comment
+  Elf32_Sym sym = {0};
 
   extract_sym_name(f->file, &sym);
   extract_sym_value(f->file, &sym);
