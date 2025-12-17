@@ -72,7 +72,10 @@ int main(int argc, char *argv[]) {
     case '2':
       Elf32_File *f = read_elf(optarg);
       // display_elf_sections(f);
-      display_elf_section_contents(".text", f);
+      // display_elf_section_contents(".text", f);
+
+      // Essai pour la table des symboles:
+      display_sym_tab(f);
       free_elf_file(f);
       break;
     case 'h':

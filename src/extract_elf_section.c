@@ -40,7 +40,7 @@ static bool is_same_endianess();
 static bool is_file_big_endian();
 
 // Si LE ou BE
-unsigned char type_data;
+static unsigned char type_data;
 
 /**
  * @brief Set the data type elf file

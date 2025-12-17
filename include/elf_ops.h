@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #define SECTION_NAME_SIZE 64
+#define SYM_NAME_SIZE 64
 
 /**
  * @brief In-memory representation of a 32-bit ELF file.
@@ -16,7 +17,8 @@ typedef struct Elf32_File {
   Elf32_Ehdr e_ehdr; /**< Parsed ELF header (host endianness). */
   Elf32_Shdr *
       e_shrdrs; /**< Array of section headers (heap-allocated), NULL if none. */
-                // TODO: Check if there aren't more required fields
+  Elf32_Sym sym;
+  // TODO: Check if there aren't more required fields
 } Elf32_File;
 
 /**
@@ -189,4 +191,23 @@ Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
  */
 void display_elf_headers(const Elf32_Ehdr *elf);
 
+/**
+ * @brief Get the shdr by name object
+ *
+ * @param section_name
+ * @param f
+ * @returns Pointer to the section header, NULL if it wasn't found
+ */
+Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f);
+
+/**
+ * @brief Returns a pointer to the section header identified by it's index.
+ * Returns NULL if not found
+ *
+ */
+Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f);
+
+Elf32_Sym extract_sym(Elf32_File *f);
+
+void display_sym_tab(Elf32_File *f);
 #endif //_ELF_OPS_H

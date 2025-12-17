@@ -14,7 +14,9 @@ SOURCES=     $(SRC_FOLDER)/ascii.c \
              $(SRC_FOLDER)/logger.c \
              $(SRC_FOLDER)/extract_elf_header.c \
              $(SRC_FOLDER)/elf_ops.c \
-             $(SRC_FOLDER)/extract_elf_section.c
+             $(SRC_FOLDER)/extract_elf_section.c \
+             $(SRC_FOLDER)/extract_elf_sym.c \
+             $(SRC_FOLDER)/display_elf_sym.c
 
 SUBDIRS=
 SUBDIRS+=. Examples_fusion
