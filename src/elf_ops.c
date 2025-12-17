@@ -130,7 +130,8 @@ void display_elf_sections(Elf32_File *f) {
 
   for (i = 0; i < shnum; ++i) {
     Elf32_Shdr *shdr = &f->e_shrdrs[i];
-    char *name = get_elf_section_name(shdr, f);
+    char *name = get_elf_section_name_unlimited(f->e_shrdrs, i,
+                                                f->e_ehdr.e_shstrndx, f->file);
     if (!name)
       name = "";
 
@@ -181,7 +182,8 @@ int display_elf_section_contents(const char *section_name, Elf32_File *f) {
   uint16_t shnum = f->e_ehdr.e_shnum;
   uint16_t i = 0;
   while (i < shnum) {
-    char *current_section_name = get_elf_section_name(&(f->e_shrdrs[i]), f);
+    char *current_section_name = get_elf_section_name_unlimited(
+        f->e_shrdrs, i, f->e_ehdr.e_shstrndx, f->file);
     int cmp = strcmp(section_name, current_section_name);
     if (cmp == 0) {
       free(current_section_name);
