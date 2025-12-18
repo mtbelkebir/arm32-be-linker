@@ -61,8 +61,8 @@ static void setData(const unsigned char data_type) { type_data = data_type; }
  * @param e_ident
  * @return Elf32_Shdr*
  */
-Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
-                                    uint32_t e_shnum, uint32_t e_shentsize,
+Elf32_Shdr *extract_section_headers(FILE *elf_file, Elf32_Off e_shoff,
+                                    Elf32_Half e_shnum, Elf32_Half e_shentsize,
                                     unsigned char e_ident[EI_NIDENT]) {
 
   // ! If the file is not correct

@@ -177,8 +177,8 @@ Elf32_Ehdr extract_elf_informations(FILE *elf_file);
  * @param e_ident
  * @return Elf32_Shdr*
  */
-Elf32_Shdr *extract_section_headers(FILE *elf_file, uint32_t e_shoff,
-                                    uint32_t e_shnum, uint32_t e_shentsize,
+Elf32_Shdr *extract_section_headers(FILE *elf_file, Elf32_Off e_shoff,
+                                    Elf32_Half e_shnum, Elf32_Half e_shentsize,
                                     unsigned char e_ident[EI_NIDENT]);
 
 /**
@@ -207,7 +207,23 @@ Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f);
  */
 Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f);
 
-Elf32_Sym *extract_sym(Elf32_File *f);
+Elf32_Sym *extract_sym(unsigned char e_ident[EI_NIDENT], Elf32_Shdr *sections,
+                       Elf32_Half e_shnum, FILE *elf_file);
 
 void display_sym_tab(Elf32_File *f);
+
+/**
+ * @brief Get the section by type object
+ *
+ * !Return a Elf32_shdr with all is attribute with 0 if no one sections match
+ * with the type
+ *
+ * @param flag
+ * @param sections
+ * @param e_shnum
+ * @param elf_file
+ * @return Elf32_Shdr
+ */
+Elf32_Shdr get_section_by_type(Elf32_Word flag, Elf32_Shdr *sections,
+                               Elf32_Half e_shnum, FILE *elf_file);
 #endif //_ELF_OPS_H

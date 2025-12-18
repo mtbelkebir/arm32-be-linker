@@ -20,7 +20,7 @@
 #include <stdlib.h>
 
 // Manage sym part:
-static Elf32_Sym extract_sym_once(Elf32_File *f);
+static Elf32_Sym extract_sym_once(FILE *elf_file);
 static void extract_sym_name(FILE *elf_file, Elf32_Sym *sym);
 static void extract_sym_value(FILE *elf_file, Elf32_Sym *sym);
 static void extract_sym_size(FILE *elf_file, Elf32_Sym *sym);
@@ -43,27 +43,29 @@ static unsigned char type_data;
  */
 static void setData(const unsigned char data_type) { type_data = data_type; }
 
-Elf32_Sym *extract_sym(Elf32_File *f) {
+Elf32_Sym *extract_sym(unsigned char e_ident[EI_NIDENT], Elf32_Shdr *sections,
+                       Elf32_Half e_shnum, FILE *elf_file) {
 
   // Define endianess
-  setData(f->e_ehdr.e_ident[EI_DATA]);
+  setData(e_ident[EI_DATA]);
 
-  Elf32_Shdr *sym_section = get_shdr_by_name(".symtab", f);
+  Elf32_Shdr sym_section =
+      get_section_by_type(SHT_SYMTAB, sections, e_shnum, elf_file);
 
   // Déplacement jusqu'à la table des symboles:
-  if (fseek(f->file, sym_section->sh_offset, SEEK_SET) != 0) {
+  if (fseek(elf_file, sym_section.sh_offset, SEEK_SET) != 0) {
     printf("Déplacement impossible !");
     exit(1);
   }
 
   int nombre_entree_table_symbole =
-      sym_section->sh_size / sym_section->sh_entsize;
+      sym_section.sh_size / sym_section.sh_entsize;
 
   // Create the table of symbols
   Elf32_Sym *sym_tab = malloc(sizeof(Elf32_Sym) * nombre_entree_table_symbole);
 
   for (int i = 0; i < nombre_entree_table_symbole; i++) {
-    sym_tab[i] = extract_sym_once(f);
+    sym_tab[i] = extract_sym_once(elf_file);
   }
 
   return sym_tab;
@@ -77,17 +79,17 @@ Elf32_Sym *extract_sym(Elf32_File *f) {
  * @param shdr
  * @return Elf32_Sym
  */
-static Elf32_Sym extract_sym_once(Elf32_File *f) {
+static Elf32_Sym extract_sym_once(FILE *elf_file) {
   // ! Laisser {0} sinon le compilateur prends peur que certains attributs soit
   // retourné n'importe comment
   Elf32_Sym sym = {0};
 
-  extract_sym_name(f->file, &sym);
-  extract_sym_value(f->file, &sym);
-  extract_sym_size(f->file, &sym);
-  extract_sym_info(f->file, &sym);
-  extract_sym_other(f->file, &sym);
-  extract_sym_shndx(f->file, &sym);
+  extract_sym_name(elf_file, &sym);
+  extract_sym_value(elf_file, &sym);
+  extract_sym_size(elf_file, &sym);
+  extract_sym_info(elf_file, &sym);
+  extract_sym_other(elf_file, &sym);
+  extract_sym_shndx(elf_file, &sym);
 
   return sym;
 }
