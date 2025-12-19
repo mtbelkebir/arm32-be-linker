@@ -178,9 +178,10 @@ EXTRACT_STATUS extract_elf_informations(Elf32_Ehdr *ehdr, FILE *elf_file);
  * @param e_ident
  * @return Elf32_Shdr*
  */
-Elf32_Shdr *extract_section_headers(FILE *elf_file, Elf32_Off e_shoff,
-                                    Elf32_Half e_shnum, Elf32_Half e_shentsize,
-                                    unsigned char e_ident[EI_NIDENT]);
+EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
+                                       Elf32_Off e_shoff, Elf32_Half e_shnum,
+                                       Elf32_Half e_shentsize,
+                                       unsigned char e_ident[EI_NIDENT]);
 
 /**
  * @brief Display all the informations in the elf structure

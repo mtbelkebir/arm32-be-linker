@@ -48,9 +48,9 @@ void sample_function(char *option1, char *option2) {
 }
 
 void header_elf(FILE *elf_file) {
-  Elf32_Ehdr elf = extract_elf_informations(elf_file);
+  // Elf32_Ehdr elf = extract_elf_informations(elf_file);
 
-  display_elf_headers(&elf);
+  // display_elf_headers(&elf);
 }
 
 int main(int argc, char *argv[]) {
@@ -85,13 +85,12 @@ int main(int argc, char *argv[]) {
       // Get the filename:
       filename_obj = optarg;
 
-      Elf32_File *f2 = read_elf(filename_obj);
-      for (int i = 0; i < f2->e_ehdr.e_shnum; ++i) {
-        // printf("%s\n", get_elf_section_name(&(f2->e_shrdrs[i]), f2));
-        printf("%s\n", get_elf_section_name_unlimited(
-                           f2->e_shrdrs, i, f2->e_ehdr.e_shstrndx, f2->file));
-      }
-      free_elf_file(f2);
+      Elf32_Ehdr ehdr;
+
+      FILE *file = fopen(filename_obj, "rb");
+
+      extract_elf_informations(&ehdr, file);
+      display_elf_headers(&ehdr);
       break;
     case 'd':
       add_debug_to(optarg);

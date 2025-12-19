@@ -26,21 +26,20 @@ Elf32_File *read_elf(const char *path) {
   f->file = associated_file;
 
   // * headers
-  f->e_ehdr = extract_elf_informations(associated_file);
-  // * sections
-  f->e_shrdrs = extract_section_headers(
-      associated_file, f->e_ehdr.e_shoff, f->e_ehdr.e_shnum,
-      f->e_ehdr.e_shentsize, f->e_ehdr.e_ident);
-
-  if (!f->e_shrdrs) {
-    error("Failed to retrieve section headers for file %s\n", path);
-    free(f);
-    return NULL;
+  EXTRACT_STATUS return_value_extract =
+      extract_elf_informations(&f->e_ehdr, f->file);
+  if (return_value_extract != SUCCESS_EXTRACT) {
+    printf("ERREUR EXTRACT INDENT");
   }
 
+  // * sections
+  // extract_section_headers(f->e_shrdrs, f->file, f->e_ehdr.e_shoff,
+  //                       f->e_ehdr.e_shnum, f->e_ehdr.e_shentsize,
+  //                     f->e_ehdr.e_ident);
+
   // * symbole:
-  f->sym =
-      extract_sym(f->e_ehdr.e_ident, f->e_shrdrs, f->e_ehdr.e_shnum, f->file);
+  // f->sym =
+  //  extract_sym(f->e_ehdr.e_ident, f->e_shrdrs, f->e_ehdr.e_shnum, f->file);
 
   return f;
 }

@@ -20,22 +20,26 @@
 
 // Manage section part:
 static void setData(const unsigned char data_type);
-static Elf32_Shdr extract_section(FILE *elf_file);
+static EXTRACT_STATUS extract_section(Elf32_Shdr *section, FILE *elf_file);
 
 // Extraction implementation:
-static void extract_section_name(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_type(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_flags(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_addr(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_offset(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_size(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_link(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_info(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_addralign(Elf32_Shdr *section, FILE *elf_file);
-static void extract_section_entsize(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_name(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_type(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_flags(Elf32_Shdr *section,
+                                            FILE *elf_file);
+static EXTRACT_STATUS extract_section_addr(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_offset(Elf32_Shdr *section,
+                                             FILE *elf_file);
+static EXTRACT_STATUS extract_section_size(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_link(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_info(Elf32_Shdr *section, FILE *elf_file);
+static EXTRACT_STATUS extract_section_addralign(Elf32_Shdr *section,
+                                                FILE *elf_file);
+static EXTRACT_STATUS extract_section_entsize(Elf32_Shdr *section,
+                                              FILE *elf_file);
 
 // Utils:
-static void file_error(FILE *elf_file);
+static EXTRACT_STATUS file_error(FILE *elf_file);
 static bool is_same_endianess();
 static bool is_file_big_endian();
 
@@ -61,26 +65,34 @@ static void setData(const unsigned char data_type) { type_data = data_type; }
  * @param e_ident
  * @return Elf32_Shdr*
  */
-Elf32_Shdr *extract_section_headers(FILE *elf_file, Elf32_Off e_shoff,
-                                    Elf32_Half e_shnum, Elf32_Half e_shentsize,
-                                    unsigned char e_ident[EI_NIDENT]) {
+EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
+                                       Elf32_Off e_shoff, Elf32_Half e_shnum,
+                                       Elf32_Half e_shentsize,
+                                       unsigned char e_ident[EI_NIDENT]) {
 
   // ! If the file is not correct
   if (fseek(elf_file, e_shoff, SEEK_SET) != 0) {
-    return NULL;
+    return ERROR_ELF_FILE_READING;
   }
 
   setData(e_ident[EI_DATA]);
 
   // ! YOU MUST BE SURE THAT E_SHENTSIZE IS CORRECT
   // * It will be a good idea to fix it to sizeof(Elf32_Shdr)
-  Elf32_Shdr *sections = malloc(e_shentsize * e_shnum);
+  sections = malloc(e_shentsize * e_shnum);
 
   for (int i = 0; i < e_shnum; i++) {
-    sections[i] = extract_section(elf_file);
+    EXTRACT_STATUS extract_status = extract_section(&sections[i], elf_file);
+
+    if (extract_status != SUCCESS_EXTRACT) {
+      {
+        free(sections);
+        return extract_status;
+      }
+    }
   }
 
-  return sections;
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -89,21 +101,26 @@ Elf32_Shdr *extract_section_headers(FILE *elf_file, Elf32_Off e_shoff,
  * @param elf_file
  * @return Elf32_Shdr
  */
-static Elf32_Shdr extract_section(FILE *elf_file) {
-  Elf32_Shdr section;
-  memset(&section, 0, sizeof(Elf32_Shdr));
-  extract_section_name(&section, elf_file);
-  extract_section_type(&section, elf_file);
-  extract_section_flags(&section, elf_file);
-  extract_section_addr(&section, elf_file);
-  extract_section_offset(&section, elf_file);
-  extract_section_size(&section, elf_file);
-  extract_section_link(&section, elf_file);
-  extract_section_info(&section, elf_file);
-  extract_section_addralign(&section, elf_file);
-  extract_section_entsize(&section, elf_file);
+static EXTRACT_STATUS extract_section(Elf32_Shdr *section, FILE *elf_file) {
 
-  return section;
+#define CHECK(p)                                                               \
+  if (p != SUCCESS_EXTRACT)                                                    \
+    return p;
+
+  memset(section, 0, sizeof(Elf32_Shdr));
+
+  CHECK(extract_section_name(section, elf_file));
+  CHECK(extract_section_type(section, elf_file));
+  CHECK(extract_section_flags(section, elf_file));
+  CHECK(extract_section_addr(section, elf_file));
+  CHECK(extract_section_offset(section, elf_file));
+  CHECK(extract_section_size(section, elf_file));
+  CHECK(extract_section_link(section, elf_file));
+  CHECK(extract_section_info(section, elf_file));
+  CHECK(extract_section_addralign(section, elf_file));
+  CHECK(extract_section_entsize(section, elf_file));
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -113,7 +130,8 @@ static Elf32_Shdr extract_section(FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_name(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_name(Elf32_Shdr *section,
+                                           FILE *elf_file) {
   Elf32_Word section_name;
   size_t return_fread_value =
       fread(&section_name, sizeof(Elf32_Word), 1, elf_file);
@@ -124,8 +142,10 @@ static void extract_section_name(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_name = section_name;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -135,7 +155,8 @@ static void extract_section_name(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_type(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_type(Elf32_Shdr *section,
+                                           FILE *elf_file) {
   Elf32_Word section_type;
   size_t return_fread_value =
       fread(&section_type, sizeof(Elf32_Word), 1, elf_file);
@@ -146,8 +167,10 @@ static void extract_section_type(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_type = section_type;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -157,7 +180,8 @@ static void extract_section_type(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_flags(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_flags(Elf32_Shdr *section,
+                                            FILE *elf_file) {
   Elf32_Word section_flags;
   size_t return_fread_value =
       fread(&section_flags, sizeof(Elf32_Word), 1, elf_file);
@@ -168,8 +192,10 @@ static void extract_section_flags(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_flags = section_flags;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -179,7 +205,8 @@ static void extract_section_flags(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_addr(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_addr(Elf32_Shdr *section,
+                                           FILE *elf_file) {
   Elf32_Addr section_addr;
   size_t return_fread_value =
       fread(&section_addr, sizeof(Elf32_Addr), 1, elf_file);
@@ -190,8 +217,10 @@ static void extract_section_addr(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_addr = section_addr;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 /**
  * @brief Read, extract and manage the endianness of offset from a ELF file
@@ -200,7 +229,8 @@ static void extract_section_addr(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_offset(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_offset(Elf32_Shdr *section,
+                                             FILE *elf_file) {
   Elf32_Off section_offset;
   size_t return_fread_value =
       fread(&section_offset, sizeof(Elf32_Off), 1, elf_file);
@@ -211,8 +241,10 @@ static void extract_section_offset(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_offset = section_offset;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -222,7 +254,8 @@ static void extract_section_offset(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_size(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_size(Elf32_Shdr *section,
+                                           FILE *elf_file) {
   Elf32_Word section_size;
   size_t return_fread_value =
       fread(&section_size, sizeof(Elf32_Word), 1, elf_file);
@@ -233,8 +266,10 @@ static void extract_section_size(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_size = section_size;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -244,7 +279,8 @@ static void extract_section_size(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_link(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_link(Elf32_Shdr *section,
+                                           FILE *elf_file) {
   Elf32_Word section_link;
   size_t return_fread_value =
       fread(&section_link, sizeof(Elf32_Word), 1, elf_file);
@@ -255,8 +291,10 @@ static void extract_section_link(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_link = section_link;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 /**
  * @brief Read, extract and manage the endianness of info from a ELF file
@@ -265,7 +303,8 @@ static void extract_section_link(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_info(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_info(Elf32_Shdr *section,
+                                           FILE *elf_file) {
   Elf32_Word section_info;
   size_t return_fread_value =
       fread(&section_info, sizeof(Elf32_Word), 1, elf_file);
@@ -276,8 +315,10 @@ static void extract_section_info(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_info = section_info;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
@@ -287,7 +328,8 @@ static void extract_section_info(Elf32_Shdr *section, FILE *elf_file) {
  * @param section
  * @param elf_file
  */
-static void extract_section_addralign(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_addralign(Elf32_Shdr *section,
+                                                FILE *elf_file) {
   Elf32_Word section_addralign;
   size_t return_fread_value =
       fread(&section_addralign, sizeof(Elf32_Word), 1, elf_file);
@@ -298,18 +340,21 @@ static void extract_section_addralign(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_addralign = section_addralign;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 /**
- * @brief Read, extract and manage the endianness of entsize from a ELF file and
- * insert it into the correct attribute of a structure Elf32_Shdr
+ * @brief Read, extract and manage the endianness of entsize from a ELF file
+ * and insert it into the correct attribute of a structure Elf32_Shdr
  *
  * @param section
  * @param elf_file
  */
-static void extract_section_entsize(Elf32_Shdr *section, FILE *elf_file) {
+static EXTRACT_STATUS extract_section_entsize(Elf32_Shdr *section,
+                                              FILE *elf_file) {
   Elf32_Word section_entsize;
   size_t return_fread_value =
       fread(&section_entsize, sizeof(Elf32_Word), 1, elf_file);
@@ -320,8 +365,10 @@ static void extract_section_entsize(Elf32_Shdr *section, FILE *elf_file) {
     }
     section->sh_entsize = section_entsize;
   } else {
-    file_error(elf_file);
+    return file_error(elf_file);
   }
+
+  return SUCCESS_EXTRACT;
 }
 
 // ! PLUSIEURS FICHIER L'IMPLEMANTE !
@@ -330,17 +377,15 @@ static void extract_section_entsize(Elf32_Shdr *section, FILE *elf_file) {
  *
  * @param elf_file
  */
-static void file_error(FILE *elf_file) {
+static EXTRACT_STATUS file_error(FILE *elf_file) {
   if (feof(elf_file)) {
-    print_error((unsigned char *)"End of file unexpected");
+    return ERROR_ELF_FILE_END_OF_FILE_UNEXPECTED;
   } else if (ferror(elf_file)) {
-    perror("Error reading elf files");
-    print_error((unsigned char *)"Error reading elf file");
+    return ERROR_ELF_FILE_READING;
   } else {
-    print_error((unsigned char *)"Unknow error reading elf file");
+    return ERROR_ELF_FILE_UNKNOW;
   }
 }
-
 /**
  * @brief Return true if the file is in big endian
  *
