@@ -1,5 +1,6 @@
 #ifndef _ELF_OPS_H_
 #define _ELF_OPS_H_
+#include "../include/logger.h"
 #include <elf.h>
 #include <stdio.h>
 
@@ -163,7 +164,7 @@ int display_elf_section_contents(const char *section_name, Elf32_File *f);
  *
  * @exception CLOSES THE ENTIRE PROGRAM IF THE ELF HEADER IS INVALID
  */
-Elf32_Ehdr extract_elf_informations(FILE *elf_file);
+EXTRACT_STATUS extract_elf_informations(Elf32_Ehdr *ehdr, FILE *elf_file);
 
 /**
  * @brief Extract all the informations from the section table of a ELF File

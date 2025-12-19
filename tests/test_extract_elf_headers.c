@@ -9,8 +9,7 @@
  *
  */
 
-#include "../include/display_elf_header.h"
-#include "../include/extract_elf_header.h"
+#include "../include/elf_ops.h"
 #include <elf.h>
 #include <stdio.h>
 
