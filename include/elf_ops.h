@@ -1,6 +1,5 @@
 #ifndef _ELF_OPS_H_
 #define _ELF_OPS_H_
-#include "../include/logger.h"
 #include <elf.h>
 #include <stdio.h>
 
@@ -42,8 +41,7 @@ Elf32_File *read_elf(const char *path);
  * Closes the underlying FILE* (if open), frees the section headers array
  * and then frees the Elf32_File structure itself.
  *
- * @param file Pointer returned by read_elf(). If NULL the function does
- * nothing.
+ * @param file Pointer returned by read_elf(). If NULL the function does nothing.
  */
 void free_elf_file(Elf32_File *file);
 
@@ -105,14 +103,10 @@ void __internal_display_elf_section();
 /**
  * @brief Get the elf section name object
  *
- * @param section
- * @param target_id
- * @param e_shstrndx
- * @param elf_file
- * @return char*
+ * @return char* Name of the section, NULL in case of error, or if there's no section header string table
+ * To be freed by the user.
  */
-char *get_elf_section_name_unlimited(Elf32_Shdr *section, int target_id,
-                                     Elf32_Half e_shstrndx, FILE *elf_file);
+char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
 
 /**
  * @brief Displays all sections of the given ELF file in a formatted table.
@@ -127,8 +121,7 @@ char *get_elf_section_name_unlimited(Elf32_Shdr *section, int target_id,
  * @post Formatted section table printed to stdout.
  *
  * @note Section names are retrieved from the section header string table.
- * @note Flags displayed: W=Write, A=Alloc, X=Exec, M=Merge, S=Strings, I=Info,
- * L=Link.
+ * @note Flags displayed: W=Write, A=Alloc, X=Exec, M=Merge, S=Strings, I=Info, L=Link.
  * @note If a section name cannot be retrieved, an empty string is displayed.
  *
  * @see display_elf_section_contents() to display section contents.
@@ -146,8 +139,7 @@ void display_elf_sections(Elf32_File *f);
  *
  * @return 1 on success, -1 if section not found, 0 on I/O error
  *
- * @note The section contents are byte-swapped if necessary to match host
- * endianness.
+ * @note The section contents are byte-swapped if necessary to match host endianness.
  * @note Section names are matched exactly (case-sensitive).
  */
 int display_elf_section_contents(const char *section_name, Elf32_File *f);
@@ -190,8 +182,7 @@ EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
  *
  * @param elf
  */
-void display_elf_headers(const Elf32_Ehdr *elf);
-
+void __display_elf_headers(const Elf32_Ehdr *elf);
 /**
  * @brief Get the shdr by name object
  *
@@ -202,8 +193,7 @@ void display_elf_headers(const Elf32_Ehdr *elf);
 Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f);
 
 /**
- * @brief Returns a pointer to the section header identified by it's index.
- * Returns NULL if not found
+ * @brief Returns a pointer to the section header identified by it's index. Returns NULL if not found
  *
  */
 Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f);

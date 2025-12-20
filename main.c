@@ -27,8 +27,10 @@ Contact: Guillaume.Huard@imag.fr
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "elf_ops.h"
 
-void usage(char *name) {
+void usage(char *name)
+{
   fprintf(stderr,
           "Usage:\n"
           "%s [ --help ] [ --option1 value ] [ --option2 value ] [ --debug "
@@ -39,7 +41,8 @@ void usage(char *name) {
           name);
 }
 
-void sample_function(char *option1, char *option2) {
+void sample_function(char *option1, char *option2)
+{
   debug("Beginning of the sample function\n");
   debug("Given values are [ %s ] and [ %s ], time to print them:\n", option1,
         option2);
@@ -51,10 +54,11 @@ void sample_function(char *option1, char *option2) {
 void header_elf(FILE *elf_file) {
   // Elf32_Ehdr elf = extract_elf_informations(elf_file);
 
-  // display_elf_headers(&elf);
+  print_elf_header(&elf);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   int opt;
 
   struct option longopts[] = {{"debug", required_argument, NULL, 'd'},
