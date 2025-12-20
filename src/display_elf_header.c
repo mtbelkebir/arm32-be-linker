@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+// ! EM_MIPS_RS4_BE seems to be undeclared in elf.h (10 value)
 #define EM_MIPS_RS4_BE 0xA
 
 /**

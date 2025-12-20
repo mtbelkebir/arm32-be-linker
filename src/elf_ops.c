@@ -238,3 +238,16 @@ Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f)
     }
     return &(f->e_shrdrs[i]);
 }
+
+Elf32_Shdr get_section_by_type(Elf32_Word flag, Elf32_Shdr *sections,
+                               Elf32_Half e_shnum, FILE *elf_file) {
+    for (int i = 0; i < e_shnum; i++) {
+        if (sections[i].sh_type == flag) {
+            return sections[i];
+        }
+    }
+
+    // TODO: Retour pas très propre, voir pour changer
+    Elf32_Shdr no_flag_match = {0};
+    return no_flag_match;
+}
