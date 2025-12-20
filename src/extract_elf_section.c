@@ -53,6 +53,27 @@ static unsigned char type_data;
  */
 static void setData(const unsigned char data_type) { type_data = data_type; }
 
+Elf32_Shdr *initialize_shdr(Elf32_Half e_shentsize, Elf32_Half e_shnum) {
+  Elf32_Shdr *shdr;
+
+  // ! YOU MUST BE SURE THAT E_SHENTSIZE IS CORRECT
+  // * It will be a good idea to fix it to sizeof(Elf32_Shdr)
+  shdr = malloc(e_shentsize * e_shnum);
+
+  if (shdr == NULL) {
+    printf("Allocation failed: SHDR");
+  }
+
+  return shdr;
+}
+
+void free_shdr(Elf32_Shdr *shdr) {
+  if (shdr == NULL)
+    return;
+  free(shdr);
+  return;
+}
+
 /**
  * @brief Extract all the informations from the section table of a ELF File
  *
@@ -67,7 +88,6 @@ static void setData(const unsigned char data_type) { type_data = data_type; }
  */
 EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
                                        Elf32_Off e_shoff, Elf32_Half e_shnum,
-                                       Elf32_Half e_shentsize,
                                        unsigned char e_ident[EI_NIDENT]) {
 
   // ! If the file is not correct
@@ -77,16 +97,11 @@ EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
 
   setData(e_ident[EI_DATA]);
 
-  // ! YOU MUST BE SURE THAT E_SHENTSIZE IS CORRECT
-  // * It will be a good idea to fix it to sizeof(Elf32_Shdr)
-  sections = malloc(e_shentsize * e_shnum);
-
   for (int i = 0; i < e_shnum; i++) {
     EXTRACT_STATUS extract_status = extract_section(&sections[i], elf_file);
 
     if (extract_status != SUCCESS_EXTRACT) {
       {
-        free(sections);
         return extract_status;
       }
     }

@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // ! All the functions manage endianness before storing
@@ -50,6 +51,22 @@ static EXTRACT_STATUS extract_shstrndx(FILE *elf_file,
 static EXTRACT_STATUS file_error(FILE *elf_file);
 static bool is_same_endianess(const Elf32_Ehdr *header_informations);
 static bool is_file_big_endian(const Elf32_Ehdr *header_informations);
+
+Elf32_Ehdr *initialize_ehdr(void) {
+  Elf32_Ehdr *ehdr = malloc(sizeof(Elf32_Ehdr));
+  if (ehdr == NULL) {
+    print_warning((unsigned char *)"Allocation failed: EHDR");
+  }
+  return ehdr;
+}
+
+void free_ehdr(Elf32_Ehdr *ehdr) {
+  if (ehdr == NULL) {
+    return;
+  }
+  free(ehdr);
+  return;
+}
 
 /**
  * @brief Extract all informations in a ELF file and return the structure

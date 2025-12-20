@@ -22,6 +22,7 @@ Contact: Guillaume.Huard@imag.fr
 */
 #include "debug.h"
 #include "elf_ops.h"
+#include "logger.h"
 #include <elf.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -85,12 +86,40 @@ int main(int argc, char *argv[]) {
       // Get the filename:
       filename_obj = optarg;
 
-      Elf32_Ehdr ehdr;
+      Elf32_File file;
+      file.file = fopen(filename_obj, "rb");
+      file.e_ehdr = *initialize_ehdr();
 
-      FILE *file = fopen(filename_obj, "rb");
+      if (extract_elf_informations(&file.e_ehdr, file.file) !=
+          SUCCESS_EXTRACT) {
+        printf("Erreur extraction EHDR");
+      }
 
-      extract_elf_informations(&ehdr, file);
-      display_elf_headers(&ehdr);
+      file.e_shrdrs =
+          initialize_shdr(file.e_ehdr.e_shentsize, file.e_ehdr.e_shnum);
+
+      if (extract_section_headers(file.e_shrdrs, file.file, file.e_ehdr.e_shoff,
+                                  file.e_ehdr.e_shnum,
+                                  file.e_ehdr.e_ident) != SUCCESS_EXTRACT) {
+        printf("Erreur extraction SHDRS");
+      }
+
+      file.sym = initialize_sym(file.e_shrdrs, file.e_ehdr.e_shnum, file.file);
+
+      if (extract_sym(file.sym, file.e_ehdr.e_ident, file.e_shrdrs,
+                      file.e_ehdr.e_shnum, file.file) != SUCCESS_EXTRACT) {
+        printf("Erreur extraction SYM");
+      }
+
+      display_elf_headers(&file.e_ehdr);
+      display_elf_sections(&file);
+      display_sym_tab(&file);
+
+      // free_ehdr(&file.e_ehdr);
+      free_shdr(file.e_shrdrs);
+      free_sym(file.sym);
+
+      return 0;
       break;
     case 'd':
       add_debug_to(optarg);

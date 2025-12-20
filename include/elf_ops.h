@@ -180,7 +180,6 @@ EXTRACT_STATUS extract_elf_informations(Elf32_Ehdr *ehdr, FILE *elf_file);
  */
 EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
                                        Elf32_Off e_shoff, Elf32_Half e_shnum,
-                                       Elf32_Half e_shentsize,
                                        unsigned char e_ident[EI_NIDENT]);
 
 /**
@@ -209,8 +208,9 @@ Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f);
  */
 Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f);
 
-Elf32_Sym *extract_sym(unsigned char e_ident[EI_NIDENT], Elf32_Shdr *sections,
-                       Elf32_Half e_shnum, FILE *elf_file);
+EXTRACT_STATUS extract_sym(Elf32_Sym *sym, unsigned char e_ident[EI_NIDENT],
+                           Elf32_Shdr *sections, Elf32_Half e_shnum,
+                           FILE *elf_file);
 
 void display_sym_tab(Elf32_File *f);
 
@@ -228,4 +228,13 @@ void display_sym_tab(Elf32_File *f);
  */
 Elf32_Shdr get_section_by_type(Elf32_Word flag, Elf32_Shdr *sections,
                                Elf32_Half e_shnum, FILE *elf_file);
+
+void free_ehdr(Elf32_Ehdr *ehdr);
+Elf32_Ehdr *initialize_ehdr(void);
+
+Elf32_Shdr *initialize_shdr(Elf32_Half e_shentsize, Elf32_Half e_shnum);
+void free_shdr(Elf32_Shdr *shdr);
+
+Elf32_Sym *initialize_sym(Elf32_Shdr *shdr, Elf32_Half e_shnum, FILE *elf_file);
+void free_sym(Elf32_Sym *sym);
 #endif //_ELF_OPS_H
