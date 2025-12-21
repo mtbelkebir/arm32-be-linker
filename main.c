@@ -40,23 +40,25 @@ void usage(char *name)
           name);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int opt;
-  ElfFile* f = NULL;
+  ElfFile *f = NULL;
   ElfParsingStatus status;
 
-  struct option longopts[] = {{"debug",         required_argument, NULL, 'd'},
-                              {"header",        required_argument, NULL, 'H'},
-                              {"section-table", required_argument, NULL, 'S'},
-                              {"hex-dump",      required_argument, NULL, 'x'},
-                              {"help",          no_argument,       NULL, 'h'},
-                              {NULL, 0, NULL, 0}};
+  struct option longopts[] = {
+    {"debug", required_argument, NULL, 'd'},
+    {"header", required_argument, NULL, 'H'},
+    {"section-table", required_argument, NULL, 'S'},
+    {"hex-dump", required_argument, NULL, 'x'},
+    {"symbols", required_argument, NULL, 's'},
+    {"help", no_argument, NULL, 'h'},
+    {NULL, 0, NULL, 0}
+  };
 
   char *filename_obj = NULL;
   char *section_name = NULL;
 
-  while ((opt = getopt_long(argc, argv, "d:H:S:x:h", longopts, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h", longopts, NULL)) != -1) {
     switch (opt) {
       case 'H':
         status = ElfFileNew(optarg, &f);
@@ -92,6 +94,16 @@ int main(int argc, char *argv[])
           }
         } else {
           fprintf(stderr, "Option -x requires a section name AND a filename\n");
+        }
+        break;
+
+      case 's':
+        status = ElfFileNew(optarg, &f);
+        if (status != Success) {
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg, ElfParsingStatusToString(status));
+        } else {
+          ElfFileDisplaySymbols(f);
+          ElfFileDestroy(f);
         }
         break;
 

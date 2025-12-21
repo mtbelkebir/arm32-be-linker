@@ -8,6 +8,15 @@ typedef struct ElfSection {
     Elf32_Shdr header;
 } ElfSection;
 
+typedef struct ElfSymbol {
+    char* name;
+    Elf32_Sym sym;
+} ElfSymbol;
+
+typedef struct ElfSymbolsTable {
+    uint32_t count;
+    ElfSymbol* symbols;
+} ElfSymbolsTable;
 /**
  * @brief In-memory representation of a 32-bit ELF file.
  *
@@ -18,7 +27,7 @@ typedef struct ElfFile {
   FILE *file;        /**< Open FILE* for the underlying file (may be NULL). */
   Elf32_Ehdr header; /**< Parsed ELF header (host endianness). */
   ElfSection* sections;
-  Elf32_Sym *sym;
+  ElfSymbolsTable* symbols_table;
   // TODO: Check if there aren't more required fields
 } ElfFile;
 
@@ -52,4 +61,5 @@ void ElfFileDestroy(ElfFile *elf);
 void ElfFileDisplaySections(ElfFile *elf);
 ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf);
 int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf);
+void ElfFileDisplaySymbols(ElfFile *elf);
 #endif //_ELF_OPS_H

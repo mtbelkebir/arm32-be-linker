@@ -6,6 +6,7 @@
 static ElfParsingStatus _ParseElfHeader(ElfFile *file);
 static ElfParsingStatus _ParseElfSections(ElfFile* file);
 static void ElfFreeSectionTable(ElfFile* elf);
+static ElfParsingStatus _ParseElfSymbols(ElfFile* file);
 
 ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
   if (!out || !path) {
@@ -26,7 +27,7 @@ ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
   // Initialize members
   new_file->file = f;
   new_file->sections = NULL;
-  new_file->sym = NULL;
+  new_file->symbols_table = NULL;
 
   ElfParsingStatus status = _ParseElfHeader(new_file);
   if (status != Success) {
@@ -36,6 +37,13 @@ ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
   }
 
   status = _ParseElfSections(new_file);
+  if (status != Success) {
+    fclose(f);
+    free(new_file);
+    return status;
+  }
+
+  status = _ParseElfSymbols(new_file);
   if (status != Success) {
     fclose(f);
     free(new_file);
@@ -177,6 +185,140 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
   }
   free(string_table);
   return Success;
+}
+static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
+  if (!file || !file->sections) return InvalidArguments;
+
+  ElfSection* sym_sec = NULL;
+  for (int i = 0; i < file->header.e_shnum; i++) {
+    if (file->sections[i].header.sh_type == SHT_SYMTAB) {
+      sym_sec = &file->sections[i];
+      break;
+    }
+  }
+
+  // If no symbol table is present, we can just stop here.
+  if (!sym_sec) return Success;
+
+  file->symbols_table = malloc(sizeof(ElfSymbolsTable));
+  if (!file->symbols_table) return MemoryError;
+
+  uint32_t count = sym_sec->header.sh_size / sym_sec->header.sh_entsize;
+  file->symbols_table->count = count;
+  file->symbols_table->symbols = calloc(count, sizeof(ElfSymbol));
+  if (!file->symbols_table->symbols) {
+    free(file->symbols_table);
+    file->symbols_table = NULL;
+    return MemoryError;
+  }
+
+  if (fseek(file->file, sym_sec->header.sh_offset, SEEK_SET) != 0) {
+    return IoError;
+  }
+
+  for (uint32_t i = 0; i < count; i++) {
+    Elf32_Sym sym;
+    if (fread(&sym, sizeof(Elf32_Sym), 1, file->file) != 1) {
+      return FileTooShort;
+    }
+    if (!is_big_endian()) {
+      sym.st_name  = byte_swap(sym.st_name);
+      sym.st_value = byte_swap(sym.st_value);
+      sym.st_size  = byte_swap(sym.st_size);
+      sym.st_shndx = byte_swap(sym.st_shndx);
+    }
+    file->symbols_table->symbols[i].sym = sym;
+  }
+
+  // All symbols are properly parsed but their names are inexistant or inaccessible. We can stop here.
+  if (sym_sec->header.sh_link == SHN_UNDEF || sym_sec->header.sh_link >= file->header.e_shnum) {
+    return Success;
+  }
+
+  Elf32_Shdr strtab_shdr = file->sections[sym_sec->header.sh_link].header;
+  /* Once again, the dark magic of loading the entire string table.
+   * We do this to avoid seeking for every single symbol name, which would be
+   * extremely slow for large symbol tables.
+   */
+  char* string_table = malloc(strtab_shdr.sh_size);
+  if (!string_table) {
+    return MemoryError;
+  }
+
+  if (fseek(file->file, strtab_shdr.sh_offset, SEEK_SET) != 0) {
+    free(string_table);
+    return IoError;
+  }
+
+  if (fread(string_table, strtab_shdr.sh_size, 1, file->file) != 1) {
+    free(string_table);
+    return IoError;
+  }
+
+  for (uint32_t i = 0; i < file->symbols_table->count; i++) {
+    uint32_t name_offset = file->symbols_table->symbols[i].sym.st_name;
+    if (name_offset < strtab_shdr.sh_size) {
+      file->symbols_table->symbols[i].name = strdup(string_table + name_offset);
+    } else {
+      file->symbols_table->symbols[i].name = strdup("<corrupt>");
+    }
+  }
+
+  free(string_table);
+  return Success;
+}
+void ElfFileDisplaySymbols(ElfFile *elf) {
+  if (!elf || !elf->symbols_table) return;
+
+  printf("\nSymbol table '.symtab' contains %d entries:\n", elf->symbols_table->count);
+  printf("   Num:    Value  Size Type    Bind   Vis      Ndx Name\n");
+
+  for (uint32_t i = 0; i < elf->symbols_table->count; i++) {
+    ElfSymbol *s = &elf->symbols_table->symbols[i];
+    Elf32_Sym *sym = &s->sym;
+
+
+    printf("%6d: ", i);
+
+
+    printf("%08x %5d ", sym->st_value, sym->st_size);
+
+
+    const char *type_name = "NOTYPE";
+    switch (ELF32_ST_TYPE(sym->st_info)) {
+      case STT_OBJECT:  type_name = "OBJECT";  break;
+      case STT_FUNC:    type_name = "FUNC";    break;
+      case STT_SECTION: type_name = "SECTION"; break;
+      case STT_FILE:    type_name = "FILE";    break;
+      case STT_COMMON:  type_name = "COMMON";  break;
+      case STT_TLS:     type_name = "TLS";     break;
+    }
+    printf("%-7s ", type_name);
+
+
+    const char *bind_name = "LOCAL";
+    switch (ELF32_ST_BIND(sym->st_info)) {
+      case STB_GLOBAL: bind_name = "GLOBAL"; break;
+      case STB_WEAK:   bind_name = "WEAK";   break;
+    }
+    printf("%-6s ", bind_name);
+
+    printf("DEFAULT  ");
+
+    // Ndx (Section Index)
+    if (sym->st_shndx == SHN_UNDEF) {
+      printf("UND ");
+    } else if (sym->st_shndx == SHN_ABS) {
+      printf("ABS ");
+    } else if (sym->st_shndx == SHN_COMMON) {
+      printf("COM ");
+    } else {
+      printf("%3d ", sym->st_shndx);
+    }
+
+    // Name
+    printf("%s\n", s->name ? s->name : "");
+  }
 }
 
 void ElfFileDestroy(ElfFile *elf) {
