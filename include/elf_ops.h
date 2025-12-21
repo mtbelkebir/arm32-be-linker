@@ -50,4 +50,6 @@ void ElfFileDisplayHeader(ElfFile *elf);
 const char *ElfParsingStatusToString(ElfParsingStatus status);
 void ElfFileDestroy(ElfFile *elf);
 void ElfFileDisplaySections(ElfFile *elf);
+ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf);
+int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf);
 #endif //_ELF_OPS_H

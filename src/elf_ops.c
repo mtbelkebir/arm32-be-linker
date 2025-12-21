@@ -294,7 +294,6 @@ const char *ElfParsingStatusToString(ElfParsingStatus status) {
   }
 }
 
-
 void ElfFileDisplaySections(ElfFile *elf) {
   if (!elf || !elf->sections) return;
 
@@ -357,4 +356,45 @@ void ElfFileDisplaySections(ElfFile *elf) {
          "  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),\n"
          "  L (link order), O (extra OS processing required), G (group), T (TLS),\n"
          "  E (exclude), D (mbind), x (unknown), o (OS specific), p (processor specific)\n");
+}
+
+ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf) {
+  if (!name || !elf) return NULL;
+
+  for (int i = 0; i < elf->header.e_shnum; i++) {
+    if (strcmp(elf->sections[i].name, name) == 0) {
+      return &elf->sections[i];
+    }
+  }
+  return NULL;
+}
+
+int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf) {
+  if (!name || !elf) return -1;
+  ElfSection* section = ElfFileGetSectionByName(name, elf);
+  if (!section) {
+    printf("No such section %s found. Nothing to display.\n", name);
+    return 1;
+  }
+
+  if (fseek(elf->file, section->header.sh_offset, SEEK_SET) != 0) {return 0;}
+  uint8_t* section_contents = malloc(section->header.sh_size);
+
+  if (!section_contents) {
+    return -1;
+  }
+
+  if (fread(section_contents, section->header.sh_size, 1, elf->file) != 1) {
+    free(section_contents);
+    return 0;
+  }
+
+  // We're printing the raw contents of the section,
+  // so there's no need to manage endianness.
+  for (int i = 0; i < section->header.sh_size; i++) {
+    printf("%02x%c", section_contents[i],
+           ((i + 1) % 16 == 0) ? '\n' : ' ');
+  }
+  free(section_contents);
+  return 1;
 }
