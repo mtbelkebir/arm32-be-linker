@@ -5,4 +5,3 @@ ColumnLimit: 80
 AllowShortFunctionsOnASingleLine: None
 BreakBeforeBraces: Attach
 PointerAlignment: Left
-StripTrailingWhitespace: true
