@@ -5,6 +5,7 @@
 #include <elf.h>
 static ElfParsingStatus _ParseElfHeader(ElfFile *file);
 static ElfParsingStatus _ParseElfSections(ElfFile* file);
+static void ElfFreeSectionTable(ElfFile* elf);
 
 ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
   if (!out || !path) {
@@ -181,10 +182,18 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
 void ElfFileDestroy(ElfFile *elf) {
   if (!elf) return;
   if (elf->file) fclose(elf->file);
-  if(elf->sections) free(elf->sections);
+  ElfFreeSectionTable(elf);
   free(elf);
 }
-
+static void ElfFreeSectionTable(ElfFile* elf) {
+  if (!elf->sections) return;
+  for (int i = 0; i < elf->header.e_shnum; i++) {
+    if (elf->sections[i].name) {
+      free(elf->sections[i].name);
+    }
+  }
+  free(elf->sections);
+}
 
 void ElfFileDisplayHeader(ElfFile *elf) {
   if (!elf) return;
@@ -283,4 +292,69 @@ const char *ElfParsingStatusToString(ElfParsingStatus status) {
     case InvalidArguments:       return "Invalid function arguments";
     default:                     return "Undefined error status";
   }
+}
+
+
+void ElfFileDisplaySections(ElfFile *elf) {
+  if (!elf || !elf->sections) return;
+
+  printf("There are %d section headers, starting at offset 0x%x:\n\n",
+         elf->header.e_shnum, elf->header.e_shoff);
+
+  printf("Section Headers:\n");
+  printf("  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al\n");
+
+  for (int i = 0; i < elf->header.e_shnum; i++) {
+    ElfSection *s = &elf->sections[i];
+    Elf32_Shdr *h = &s->header;
+
+    printf("  [%2d] %-17.17s ", i, s->name ? s->name : "");
+
+    const char *type_name = "UNKNOWN";
+    switch (h->sh_type) {
+      case SHT_NULL:     type_name = "NULL";     break;
+      case SHT_PROGBITS: type_name = "PROGBITS"; break;
+      case SHT_SYMTAB:   type_name = "SYMTAB";   break;
+      case SHT_STRTAB:   type_name = "STRTAB";   break;
+      case SHT_RELA:     type_name = "RELA";     break;
+      case SHT_HASH:     type_name = "HASH";     break;
+      case SHT_DYNAMIC:  type_name = "DYNAMIC";  break;
+      case SHT_NOTE:     type_name = "NOTE";     break;
+      case SHT_NOBITS:   type_name = "NOBITS";   break;
+      case SHT_REL:      type_name = "REL";      break;
+      case SHT_SHLIB:    type_name = "SHLIB";    break;
+      case SHT_DYNSYM:   type_name = "DYNSYM";   break;
+      case SHT_INIT_ARRAY: type_name = "INIT_ARRAY"; break;
+      case SHT_FINI_ARRAY: type_name = "FINI_ARRAY"; break;
+      case SHT_ARM_ATTRIBUTES: type_name = "ARM_ATTRIBUTES"; break;
+    }
+    printf("%-15s ", type_name);
+
+    printf("%08x %06x %06x %02x ",
+           h->sh_addr, h->sh_offset, h->sh_size, h->sh_entsize);
+
+    // Comprehensive Flags Decoding
+    char flags_buf[12] = {0};
+    int f_idx = 0;
+    if (h->sh_flags & SHF_WRITE)            flags_buf[f_idx++] = 'W';
+    if (h->sh_flags & SHF_ALLOC)            flags_buf[f_idx++] = 'A';
+    if (h->sh_flags & SHF_EXECINSTR)        flags_buf[f_idx++] = 'X';
+    if (h->sh_flags & SHF_MERGE)            flags_buf[f_idx++] = 'M';
+    if (h->sh_flags & SHF_STRINGS)          flags_buf[f_idx++] = 'S';
+    if (h->sh_flags & SHF_INFO_LINK)        flags_buf[f_idx++] = 'I';
+    if (h->sh_flags & SHF_LINK_ORDER)       flags_buf[f_idx++] = 'L';
+    if (h->sh_flags & SHF_OS_NONCONFORMING) flags_buf[f_idx++] = 'O';
+    if (h->sh_flags & SHF_GROUP)            flags_buf[f_idx++] = 'G';
+    if (h->sh_flags & SHF_TLS)              flags_buf[f_idx++] = 'T';
+    if (h->sh_flags & SHF_EXCLUDE)          flags_buf[f_idx++] = 'E';
+
+    printf("%-3s ", flags_buf);
+
+    printf("%2u %3u %2u\n", h->sh_link, h->sh_info, h->sh_addralign);
+  }
+
+  printf("Key to Flags:\n"
+         "  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),\n"
+         "  L (link order), O (extra OS processing required), G (group), T (TLS),\n"
+         "  E (exclude), D (mbind), x (unknown), o (OS specific), p (processor specific)\n");
 }
