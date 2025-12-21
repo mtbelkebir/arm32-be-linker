@@ -4,6 +4,7 @@
 #include <string.h>
 #include <elf.h>
 static ElfParsingStatus _ParseElfHeader(ElfFile *file);
+static ElfParsingStatus _ParseElfSections(ElfFile* file);
 
 ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
   if (!out || !path) {
@@ -33,6 +34,12 @@ ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
     return status;
   }
 
+  status = _ParseElfSections(new_file);
+  if (status != Success) {
+    fclose(f);
+    free(new_file);
+    return status;
+  }
   *out = new_file;
   return Success;
 }
@@ -95,6 +102,79 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
     file->header.e_shnum = byte_swap(file->header.e_shnum);
     file->header.e_shstrndx = byte_swap(file->header.e_shstrndx);
   }
+  return Success;
+}
+static ElfParsingStatus _ParseElfSections(ElfFile* file) {
+  if (!file || file->header.e_shnum == 0) return Success;
+
+  if (fseek(file->file, file->header.e_shoff, SEEK_SET) != 0) {
+    return IoError;
+  }
+
+  size_t section_table_size = file->header.e_shnum * sizeof(ElfSection);
+  file->sections = malloc(section_table_size);
+
+  if (!file->sections) {
+    return MemoryError;
+  }
+
+  memset(file->sections, 0, section_table_size);
+
+  for (uint16_t i = 0; i < file->header.e_shnum; i++) {
+    Elf32_Shdr shdr;
+    if (fread(&shdr, sizeof(Elf32_Shdr), 1, file->file) != 1) {
+      return FileTooShort;
+    }
+    if (!is_big_endian()) {
+      shdr.sh_name      = byte_swap(shdr.sh_name);
+      shdr.sh_type      = byte_swap(shdr.sh_type);
+      shdr.sh_flags     = byte_swap(shdr.sh_flags);
+      shdr.sh_addr      = byte_swap(shdr.sh_addr);
+      shdr.sh_offset    = byte_swap(shdr.sh_offset);
+      shdr.sh_size      = byte_swap(shdr.sh_size);
+      shdr.sh_link      = byte_swap(shdr.sh_link);
+      shdr.sh_info      = byte_swap(shdr.sh_info);
+      shdr.sh_addralign = byte_swap(shdr.sh_addralign);
+      shdr.sh_entsize   = byte_swap(shdr.sh_entsize);
+    }
+    file->sections[i].header = shdr;
+  }
+  // All sections are properly parsed but their names are inexistant or inaccessible. We can stop here.
+  if (file->header.e_shstrndx == SHN_UNDEF || file->header.e_shstrndx >= file->header.e_shnum) {
+    return Success;
+  }
+
+  Elf32_Shdr strtab_shdr = file->sections[file->header.e_shstrndx].header;
+  /* What's coming is going to be some pretty dark magic.
+   * Indeed, since we can't know in advance the size of a section's name, and we don't want to keep using `fgetc`
+   * and realloc (that's kind of slow and heavy on the drive), we'll just load the entire string table at once,
+   * and from it use `strdup` to get the full name safely.
+   */
+
+  char* string_table = malloc(strtab_shdr.sh_size);
+  if (!string_table) {
+    return MemoryError;
+  }
+
+  if (fseek(file->file, strtab_shdr.sh_offset, SEEK_SET) != 0) {
+    free(string_table);
+    return IoError;
+  }
+
+  if (fread(string_table, strtab_shdr.sh_size, 1, file->file) != 1) {
+    free(string_table);
+    return IoError;
+  }
+
+  for (uint16_t i = 0; i < file->header.e_shnum; i++) {
+    uint32_t name_offset = file->sections[i].header.sh_name;
+    if (name_offset < strtab_shdr.sh_size) {
+      file->sections[i].name = strdup(string_table + name_offset);
+    } else {
+      file->sections[i].name = strdup("<corrupt>");
+    }
+  }
+  free(string_table);
   return Success;
 }
 
