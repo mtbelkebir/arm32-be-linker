@@ -3,8 +3,10 @@
 #include <elf.h>
 #include <stdio.h>
 
-#define SECTION_NAME_SIZE 64
-#define SYM_NAME_SIZE 64
+typedef struct ElfSection {
+    char* name;
+    Elf32_Shdr header;
+} ElfSection;
 
 /**
  * @brief In-memory representation of a 32-bit ELF file.
@@ -14,9 +16,8 @@
  */
 typedef struct ElfFile {
   FILE *file;        /**< Open FILE* for the underlying file (may be NULL). */
-  Elf32_Ehdr e_ehdr; /**< Parsed ELF header (host endianness). */
-  Elf32_Shdr *
-      e_shrdrs; /**< Array of section headers (heap-allocated), NULL if none. */
+  Elf32_Ehdr header; /**< Parsed ELF header (host endianness). */
+  ElfSection* sections;
   Elf32_Sym *sym;
   // TODO: Check if there aren't more required fields
 } ElfFile;
@@ -26,6 +27,7 @@ typedef enum ElfParsingStatus {
   FileTooShort,
   IoError,
   NotAnElfFile,
+  UnexpectedEof,
   UnsupportedMachineType,
   UnsupportedEndianness,
   UnknownError,
@@ -39,6 +41,9 @@ typedef enum ElfParsingStatus {
                     // with the wrong args
 
 } ElfParsingStatus;
+
+
+
 
 ElfParsingStatus ElfFileNew(const char *path, ElfFile **out);
 void ElfFileDisplayHeader(ElfFile *elf);

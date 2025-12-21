@@ -2,6 +2,7 @@
 #include "util.h"
 #include <stdlib.h>
 #include <string.h>
+#include <elf.h>
 static ElfParsingStatus _ParseElfHeader(ElfFile *file);
 
 ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
@@ -22,7 +23,7 @@ ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
 
   // Initialize members
   new_file->file = f;
-  new_file->e_shrdrs = NULL;
+  new_file->sections = NULL;
   new_file->sym = NULL;
 
   ElfParsingStatus status = _ParseElfHeader(new_file);
@@ -76,23 +77,23 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
       return UnknownDataEncoding;
   }
 
-  memcpy(&file->e_ehdr, header_buffer, sizeof(Elf32_Ehdr));
+  memcpy(&file->header, header_buffer, sizeof(Elf32_Ehdr));
 
   // Reverse endianness of all values in host is little endian
   if (!is_big_endian()) {
-    file->e_ehdr.e_type = byte_swap(file->e_ehdr.e_type);
-    file->e_ehdr.e_machine = byte_swap(file->e_ehdr.e_machine);
-    file->e_ehdr.e_version = byte_swap(file->e_ehdr.e_version);
-    file->e_ehdr.e_entry = byte_swap(file->e_ehdr.e_entry);
-    file->e_ehdr.e_phoff = byte_swap(file->e_ehdr.e_phoff);
-    file->e_ehdr.e_shoff = byte_swap(file->e_ehdr.e_shoff);
-    file->e_ehdr.e_flags = byte_swap(file->e_ehdr.e_flags);
-    file->e_ehdr.e_ehsize = byte_swap(file->e_ehdr.e_ehsize);
-    file->e_ehdr.e_phentsize = byte_swap(file->e_ehdr.e_phentsize);
-    file->e_ehdr.e_phnum = byte_swap(file->e_ehdr.e_phnum);
-    file->e_ehdr.e_shentsize = byte_swap(file->e_ehdr.e_shentsize);
-    file->e_ehdr.e_shnum = byte_swap(file->e_ehdr.e_shnum);
-    file->e_ehdr.e_shstrndx = byte_swap(file->e_ehdr.e_shstrndx);
+    file->header.e_type = byte_swap(file->header.e_type);
+    file->header.e_machine = byte_swap(file->header.e_machine);
+    file->header.e_version = byte_swap(file->header.e_version);
+    file->header.e_entry = byte_swap(file->header.e_entry);
+    file->header.e_phoff = byte_swap(file->header.e_phoff);
+    file->header.e_shoff = byte_swap(file->header.e_shoff);
+    file->header.e_flags = byte_swap(file->header.e_flags);
+    file->header.e_ehsize = byte_swap(file->header.e_ehsize);
+    file->header.e_phentsize = byte_swap(file->header.e_phentsize);
+    file->header.e_phnum = byte_swap(file->header.e_phnum);
+    file->header.e_shentsize = byte_swap(file->header.e_shentsize);
+    file->header.e_shnum = byte_swap(file->header.e_shnum);
+    file->header.e_shstrndx = byte_swap(file->header.e_shstrndx);
   }
   return Success;
 }
@@ -100,17 +101,15 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
 void ElfFileDestroy(ElfFile *elf) {
   if (!elf) return;
   if (elf->file) fclose(elf->file);
-  if(elf->e_shrdrs) free(elf->e_shrdrs);
+  if(elf->sections) free(elf->sections);
   free(elf);
 }
 
 
 void ElfFileDisplayHeader(ElfFile *elf) {
-  if (!elf) {
-    return;
-  }
+  if (!elf) return;
 
-  Elf32_Ehdr *h = &elf->e_ehdr;
+  Elf32_Ehdr *h = &elf->header;
 
   printf("ELF Header:\n");
   printf("  Magic:   ");
@@ -120,25 +119,64 @@ void ElfFileDisplayHeader(ElfFile *elf) {
   printf("\n");
 
   printf("  Class:                             %s\n",
-         h->e_ident[EI_CLASS] == ELFCLASS32 ? "ELF32" : "ELF64");
+         h->e_ident[EI_CLASS] == ELFCLASS32 ? "ELF32" :
+         (h->e_ident[EI_CLASS] == ELFCLASS64 ? "ELF64" : "None"));
+
   printf("  Data:                              %s\n",
-         h->e_ident[EI_DATA] == ELFDATA2MSB ? "2's complement, big endian" : "2's complement, little endian");
-  printf("  Version:                           %d (current)\n", h->e_ident[EI_VERSION]);
-  printf("  OS/ABI:                            UNIX - System V\n"); // Simplified
+         h->e_ident[EI_DATA] == ELFDATA2MSB ? "2's complement, big endian" :
+         (h->e_ident[EI_DATA] == ELFDATA2LSB ? "2's complement, little endian" : "None"));
+
+  printf("  Version:                           %d%s\n",
+         h->e_ident[EI_VERSION], h->e_ident[EI_VERSION] == EV_CURRENT ? " (current)" : "");
+
+  printf("  OS/ABI:                            ");
+  switch (h->e_ident[EI_OSABI]) {
+    case ELFOSABI_SYSV:       printf("UNIX - System V\n"); break;
+    case ELFOSABI_HPUX:       printf("HP-UX\n"); break;
+    case ELFOSABI_NETBSD:     printf("NetBSD\n"); break;
+    case ELFOSABI_LINUX:      printf("Linux\n"); break;
+    case ELFOSABI_SOLARIS:    printf("Solaris\n"); break;
+    case ELFOSABI_ARM:        printf("ARM\n"); break;
+    case ELFOSABI_STANDALONE: printf("Standalone App\n"); break;
+    default:                  printf("<unknown: %x>\n", h->e_ident[EI_OSABI]); break;
+  }
+
   printf("  ABI Version:                       %d\n", h->e_ident[EI_ABIVERSION]);
+
   printf("  Type:                              ");
   switch (h->e_type) {
+    case ET_NONE: printf("NONE (None)\n"); break;
     case ET_REL:  printf("REL (Relocatable file)\n"); break;
     case ET_EXEC: printf("EXEC (Executable file)\n"); break;
     case ET_DYN:  printf("DYN (Shared object file)\n"); break;
-    default:      printf("Unknown\n"); break;
+    case ET_CORE: printf("CORE (Core file)\n"); break;
+    default:      printf("<unknown: %x>\n", h->e_type); break;
   }
-  printf("  Machine:                           %d\n", h->e_machine);
+
+  printf("  Machine:                           ");
+  switch (h->e_machine) {
+    case EM_NONE:  printf("None\n"); break;
+    case EM_ARM:   printf("ARM\n"); break;
+    case EM_X86_64:printf("Advanced Micro Devices X86-64\n"); break;
+    case EM_386:   printf("Intel 80386\n"); break;
+    default:       printf("<unknown: %d>\n", h->e_machine); break;
+  }
+
   printf("  Version:                           0x%x\n", h->e_version);
   printf("  Entry point address:               0x%x\n", h->e_entry);
   printf("  Start of program headers:          %d (bytes into file)\n", h->e_phoff);
   printf("  Start of section headers:          %d (bytes into file)\n", h->e_shoff);
-  printf("  Flags:                             0x%x\n", h->e_flags);
+
+  printf("  Flags:                             0x%x", h->e_flags);
+  if (h->e_machine == EM_ARM) {
+    // Decode common ARM flags
+    unsigned int eabi = EF_ARM_EABI_VERSION(h->e_flags);
+    if (eabi != 0) printf(", Version%d EABI", eabi >> 24);
+    if (h->e_flags & EF_ARM_RELEXEC) printf(", RELEXEC");
+    if (h->e_flags & EF_ARM_HASENTRY) printf(", HASENTRY");
+  }
+  printf("\n");
+
   printf("  Size of this header:               %d (bytes)\n", h->e_ehsize);
   printf("  Size of program headers:           %d (bytes)\n", h->e_phentsize);
   printf("  Number of program headers:         %d\n", h->e_phnum);
