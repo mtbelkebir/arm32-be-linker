@@ -97,6 +97,13 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
   return Success;
 }
 
+void ElfFileDestroy(ElfFile *elf) {
+  if (!elf) return;
+  if (elf->file) fclose(elf->file);
+  if(elf->e_shrdrs) free(elf->e_shrdrs);
+  free(elf);
+}
+
 
 void ElfFileDisplayHeader(ElfFile *elf) {
   if (!elf) {

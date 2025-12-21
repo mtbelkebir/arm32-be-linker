@@ -43,4 +43,5 @@ typedef enum ElfParsingStatus {
 ElfParsingStatus ElfFileNew(const char *path, ElfFile **out);
 void ElfFileDisplayHeader(ElfFile *elf);
 const char *ElfParsingStatusToString(ElfParsingStatus status);
+void ElfFileDestroy(ElfFile *elf);
 #endif //_ELF_OPS_H
