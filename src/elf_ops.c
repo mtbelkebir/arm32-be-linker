@@ -1,253 +1,102 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include "elf_ops.h"
-#include "debug.h"
 #include "util.h"
+#include <stdlib.h>
+#include <string.h>
+static ElfParsingStatus _ParseElfHeader(ElfFile *file);
 
-Elf32_File *read_elf(const char *path)
-{
-    Elf32_File *f = malloc(sizeof(Elf32_File));
-    if (!f)
-    {
-        error("Fatal allocation error\n");
-        return NULL;
-    }
+ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
+  if (!out || !path) {
+    return InvalidArguments;
+  }
 
-    FILE *associated_file = fopen(path, "rb");
-    if (!associated_file)
-    {
-        error("Error trying to read file %s\n, please check that it exists and has read permissions", path);
-        free(f);
-        return NULL;
-    }
+  FILE *f = fopen(path, "rb");
+  if (!f) {
+    return IoError;
+  }
 
-    f->file = associated_file;
+  ElfFile *new_file = (ElfFile *)malloc(sizeof(ElfFile));
+  if (!new_file) {
+    fclose(f);
+    return MemoryError;
+  }
 
-    f->e_ehdr = extract_elf_informations(associated_file);
-    f->e_shrdrs = extract_section_headers(associated_file,
-                                          f->e_ehdr.e_shoff,
-                                          f->e_ehdr.e_shnum,
-                                          f->e_ehdr.e_shentsize,
-                                          f->e_ehdr.e_ident);
+  // Initialize members
+  new_file->file = f;
+  new_file->e_shrdrs = NULL;
+  new_file->sym = NULL;
 
-    if (!f->e_shrdrs)
-    {
-        error("Failed to retrieve section headers for file %s\n", path);
-        free(f);
-        return NULL;
-    }
+  ElfParsingStatus status = _ParseElfHeader(new_file);
+  if (status != Success) {
+    fclose(f);
+    free(new_file);
+    return status;
+  }
 
-    return f;
+  *out = new_file;
+  return Success;
 }
 
-void free_elf_file(Elf32_File *elf_file)
-{
-    if (!elf_file)
-        return;
-    if (elf_file->file)
-    {
-        fclose(elf_file->file);
-    }
-    else
-    {
-        fprintf(stderr, "[WARNING] Tried to free already freed stream in elf_file\n");
-    }
-    free(elf_file);
+static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
+  if (!file) return InvalidArguments;
+  uint8_t header_buffer[sizeof(Elf32_Ehdr)] = {0};
+
+  rewind(file->file);
+  // File too short to anything anyway
+  if (fread(header_buffer, 1, sizeof(Elf32_Ehdr), file->file) < sizeof(Elf32_Ehdr)) {
+
+      return FileTooShort;
+  }
+
+  const uint8_t expected_magic[4] = {0x7f, 0x45, 0x4c, 0x46};
+  if (memcmp(header_buffer, expected_magic, sizeof(expected_magic)) != 0) {
+    return NotAnElfFile;
+  }
+
+  // Would be checking that we don't have a 64 bits ELF file, or that the value is unknown
+  switch (header_buffer[EI_CLASS]) {
+    case ELFCLASSNONE:
+      return InvalidClass;
+    case ELFCLASS32:
+      // This is a 32 bits file, so we can continue.
+      break;
+    case ELFCLASS64:
+      return UnsupportedClass;
+    default:
+      return UnknownClass;
+  }
+  // Verifies that the passed in file is actually Big Endian
+  switch (header_buffer[EI_DATA]) {
+    case ELFDATANONE:
+      return InvalidDataEncoding;
+    case ELFDATA2MSB:
+      break;
+    case ELFDATA2LSB:
+      return UnsupportedEndianness;
+    case ELFDATA2LSB:
+      break;
+    default:
+      return UnknownDataEncoding;
+  }
+
+  memcpy(&file->e_ehdr, header_buffer, sizeof(Elf32_Ehdr));
+
+  // Reverse endianness of all values in host is little endian
+  if (!is_big_endian()) {
+    file->e_ehdr.e_type = byte_swap(file->e_ehdr.e_type);
+    file->e_ehdr.e_machine = byte_swap(file->e_ehdr.e_machine);
+    file->e_ehdr.e_version = byte_swap(file->e_ehdr.e_version);
+    file->e_ehdr.e_entry = byte_swap(file->e_ehdr.e_entry);
+    file->e_ehdr.e_phoff = byte_swap(file->e_ehdr.e_phoff);
+    file->e_ehdr.e_shoff = byte_swap(file->e_ehdr.e_shoff);
+    file->e_ehdr.e_flags = byte_swap(file->e_ehdr.e_flags);
+    file->e_ehdr.e_ehsize = byte_swap(file->e_ehdr.e_ehsize);
+    file->e_ehdr.e_phentsize = byte_swap(file->e_ehdr.e_phentsize);
+    file->e_ehdr.e_phnum = byte_swap(file->e_ehdr.e_phnum);
+    file->e_ehdr.e_shentsize = byte_swap(file->e_ehdr.e_shentsize);
+    file->e_ehdr.e_shnum = byte_swap(file->e_ehdr.e_shnum);
+    file->e_ehdr.e_shstrndx = byte_swap(file->e_ehdr.e_shstrndx);
+  }
+  return Success;
 }
 
-void print_elf_header(Elf32_File *f)
-{
-    __display_elf_headers(&(f->e_ehdr));
-}
 
-void print_section_table(Elf32_File *f)
-{
-}
-
-char *get_elf_section_name(Elf32_Shdr *shdr, Elf32_File *file)
-{
-    if (!shdr || !file || !file->e_shrdrs)
-        return NULL;
-
-    uint16_t strtab_idx = file->e_ehdr.e_shstrndx;
-    if (strtab_idx == SHN_UNDEF || strtab_idx >= file->e_ehdr.e_shnum)
-    {
-        return NULL;
-    }
-
-    Elf32_Shdr *strtab_shdr = &file->e_shrdrs[strtab_idx];
-    char *name = malloc(4096); // TODO: Actual names are not limited
-    if (fseek(file->file, strtab_shdr->sh_offset + shdr->sh_name, SEEK_SET) != 0)
-    {
-        free(name);
-        return NULL;
-    }
-    if (!fgets(name, 4096, file->file))
-    {
-        free(name);
-        return NULL;
-    }
-    return name;
-}
-
-void display_elf_sections(Elf32_File *f)
-{
-    if (!f)
-        return;
-    uint16_t shnum = f->e_ehdr.e_shnum;
-    uint16_t i;
-    printf("Section Headers:\n");
-    printf("  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al\n");
-
-    for (i = 0; i < shnum; ++i)
-    {
-        Elf32_Shdr *shdr = &f->e_shrdrs[i];
-        char *name = get_elf_section_name(shdr, f);
-        if (!name)
-            name = "";
-
-        // Get section type name
-        const char *type_name;
-        if (shdr->sh_type <= SHT_DYNSYM)
-        {
-            const char *type_names[] = {
-                "NULL", "PROGBITS", "SYMTAB", "STRTAB", "RELA", "HASH",
-                "DYNAMIC", "NOTE", "NOBITS", "REL", "SHLIB", "DYNSYM"};
-            type_name = type_names[shdr->sh_type];
-        }
-        else
-        {
-            type_name = "UNKNOWN";
-        }
-
-        // Building of flag string
-        char flags[8] = {0};
-        int f_idx = 0;
-        if (shdr->sh_flags & SHF_WRITE)
-            flags[f_idx++] = 'W';
-        if (shdr->sh_flags & SHF_ALLOC)
-            flags[f_idx++] = 'A';
-        if (shdr->sh_flags & SHF_EXECINSTR)
-            flags[f_idx++] = 'X';
-        if (shdr->sh_flags & SHF_MERGE)
-            flags[f_idx++] = 'M';
-        if (shdr->sh_flags & SHF_STRINGS)
-            flags[f_idx++] = 'S';
-        if (shdr->sh_flags & SHF_INFO_LINK)
-            flags[f_idx++] = 'I';
-        if (shdr->sh_flags & SHF_LINK_ORDER)
-            flags[f_idx++] = 'L';
-        flags[f_idx] = '\0';
-
-        printf("  [%2u] %-17s %-15s %08x %06x %06x %2x %3s %2u %3u %2u\n",
-               i,
-               name,
-               type_name,
-               shdr->sh_addr,
-               shdr->sh_offset,
-               shdr->sh_size,
-               shdr->sh_entsize,
-               flags,
-               shdr->sh_link,
-               shdr->sh_info,
-               shdr->sh_addralign);
-
-        if (name && name[0] != '\0')
-            free(name);
-    }
-}
-
-int display_elf_section_contents(const char *section_name, Elf32_File *f)
-{
-    if (!f)
-        return 0;
-
-    Elf32_Shdr *section = get_shdr_by_name(section_name, f);
-    if (!section)
-        return -1;
-    printf("Content of section %s : \n", section_name);
-    uint32_t section_size = section->sh_size;
-    uint32_t section_offset = section->sh_offset;
-    if (fseek(f->file, section_offset, SEEK_SET) != 0)
-    {
-        error("Unknown I/O error\n");
-        return 0;
-    }
-
-    for (uint32_t j = 0; j < section_size; j += 4)
-    {
-        uint32_t word;
-        if (fread(&word, 4, 1, f->file) != 1)
-        {
-            error("Unknown I/O error\n");
-            return 0;
-        }
-        word = byte_swap(word);
-
-        if (j % 4 == 0)
-        {
-            printf("%08x ", word);
-        }
-        else if (j % 4 == 3)
-        {
-            printf(" %08x\n", word);
-        }
-        else
-        {
-            printf(" %08x ", word);
-        }
-    }
-    printf("\n");
-
-    return 1;
-}
-
-Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f)
-{
-    if (f == NULL)
-        return NULL;
-    if (section_number >= f->e_ehdr.e_shnum || section_number < 0)
-    {
-        return NULL;
-    }
-    return &(f->e_shrdrs[section_number]);
-}
-
-Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f)
-{
-    uint16_t shnum = f->e_ehdr.e_shnum;
-    uint16_t i = 0;
-    while (i < shnum)
-    {
-        char *current_section_name = get_elf_section_name(&(f->e_shrdrs[i]), f);
-        int cmp = strcmp(section_name, current_section_name);
-        if (cmp == 0)
-        {
-            free(current_section_name);
-            break;
-        }
-        free(current_section_name);
-        i++;
-    }
-
-    if (i >= shnum)
-    {
-        printf("Section %s is not present in file\n", section_name);
-        return NULL;
-    }
-    return &(f->e_shrdrs[i]);
-}
-
-Elf32_Shdr get_section_by_type(Elf32_Word flag, Elf32_Shdr *sections,
-                               Elf32_Half e_shnum, FILE *elf_file) {
-    for (int i = 0; i < e_shnum; i++) {
-        if (sections[i].sh_type == flag) {
-            return sections[i];
-        }
-    }
-
-    // TODO: Retour pas très propre, voir pour changer
-    Elf32_Shdr no_flag_match = {0};
-    return no_flag_match;
-}
