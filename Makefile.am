@@ -9,9 +9,7 @@ AM_CPPFLAGS = -I$(srcdir)/include -I$(srcdir) -I$(UNITY_DIR)
 # --- Internal Static Library ---
 noinst_LIBRARIES = libelflinker.a
 libelflinker_a_SOURCES = \
-    debug.c util.c src/ascii.c src/display_elf_header.c \
-    src/logger.c src/extract_elf_header.c src/elf_ops.c src/extract_elf_section.c \
-    src/extract_elf_sym.c src/display_elf_sym.c
+    debug.c util.c src/elf_ops.c
 
 # --- Main Application ---
 bin_PROGRAMS = main
