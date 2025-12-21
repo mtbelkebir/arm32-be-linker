@@ -72,8 +72,6 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
       break;
     case ELFDATA2LSB:
       return UnsupportedEndianness;
-    case ELFDATA2LSB:
-      break;
     default:
       return UnknownDataEncoding;
   }
@@ -99,4 +97,46 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
   return Success;
 }
 
+
+void ElfFileDisplayHeader(ElfFile *elf) {
+  if (!elf) {
+    return;
+  }
+
+  Elf32_Ehdr *h = &elf->e_ehdr;
+
+  printf("ELF Header:\n");
+  printf("  Magic:   ");
+  for (int i = 0; i < EI_NIDENT; i++) {
+    printf("%02x ", h->e_ident[i]);
+  }
+  printf("\n");
+
+  printf("  Class:                             %s\n",
+         h->e_ident[EI_CLASS] == ELFCLASS32 ? "ELF32" : "ELF64");
+  printf("  Data:                              %s\n",
+         h->e_ident[EI_DATA] == ELFDATA2MSB ? "2's complement, big endian" : "2's complement, little endian");
+  printf("  Version:                           %d (current)\n", h->e_ident[EI_VERSION]);
+  printf("  OS/ABI:                            UNIX - System V\n"); // Simplified
+  printf("  ABI Version:                       %d\n", h->e_ident[EI_ABIVERSION]);
+  printf("  Type:                              ");
+  switch (h->e_type) {
+    case ET_REL:  printf("REL (Relocatable file)\n"); break;
+    case ET_EXEC: printf("EXEC (Executable file)\n"); break;
+    case ET_DYN:  printf("DYN (Shared object file)\n"); break;
+    default:      printf("Unknown\n"); break;
+  }
+  printf("  Machine:                           %d\n", h->e_machine);
+  printf("  Version:                           0x%x\n", h->e_version);
+  printf("  Entry point address:               0x%x\n", h->e_entry);
+  printf("  Start of program headers:          %d (bytes into file)\n", h->e_phoff);
+  printf("  Start of section headers:          %d (bytes into file)\n", h->e_shoff);
+  printf("  Flags:                             0x%x\n", h->e_flags);
+  printf("  Size of this header:               %d (bytes)\n", h->e_ehsize);
+  printf("  Size of program headers:           %d (bytes)\n", h->e_phentsize);
+  printf("  Number of program headers:         %d\n", h->e_phnum);
+  printf("  Size of section headers:           %d (bytes)\n", h->e_shentsize);
+  printf("  Number of section headers:         %d\n", h->e_shnum);
+  printf("  Section header string table index: %d\n", h->e_shstrndx);
+}
 
