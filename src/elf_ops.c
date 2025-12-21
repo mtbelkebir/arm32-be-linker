@@ -140,3 +140,22 @@ void ElfFileDisplayHeader(ElfFile *elf) {
   printf("  Section header string table index: %d\n", h->e_shstrndx);
 }
 
+const char *ElfParsingStatusToString(ElfParsingStatus status) {
+  switch (status) {
+    case Success:                return "Success";
+    case FileTooShort:           return "File too short";
+    case IoError:                return "I/O error (could not open or read file)";
+    case NotAnElfFile:           return "Not a valid ELF file (magic mismatch)";
+    case UnsupportedMachineType: return "Unsupported machine type";
+    case UnsupportedEndianness:  return "Unsupported endianness (only Big Endian is supported)";
+    case UnknownError:           return "Unknown error";
+    case UnknownDataEncoding:    return "Unknown data encoding";
+    case InvalidClass:           return "Invalid ELF class";
+    case UnsupportedClass:       return "Unsupported ELF class (only 32-bit is supported)";
+    case UnknownClass:           return "Unknown ELF class";
+    case InvalidDataEncoding:    return "Invalid data encoding";
+    case MemoryError:            return "Memory allocation failed";
+    case InvalidArguments:       return "Invalid function arguments";
+    default:                     return "Undefined error status";
+  }
+}
