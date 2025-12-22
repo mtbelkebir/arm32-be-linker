@@ -17,6 +17,15 @@ typedef struct ElfSymbolsTable {
     uint32_t count;
     ElfSymbol* symbols;
 } ElfSymbolsTable;
+
+typedef struct ElfRelocationTable {
+  char* name;
+  uint32_t target_section;
+  uint32_t offset;
+  uint32_t count;
+  Elf32_Rel* entries;
+
+} ElfRelocationTable;
 /**
  * @brief In-memory representation of a 32-bit ELF file.
  *
@@ -28,6 +37,8 @@ typedef struct ElfFile {
   Elf32_Ehdr header; /**< Parsed ELF header (host endianness). */
   ElfSection* sections;
   ElfSymbolsTable* symbols_table;
+  ElfRelocationTable* rel_tables;
+  uint16_t rel_tables_count;
   // TODO: Check if there aren't more required fields
 } ElfFile;
 
@@ -61,5 +72,8 @@ void ElfFileDestroy(ElfFile *elf);
 void ElfFileDisplaySections(ElfFile *elf);
 ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf);
 int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf);
-void ElfFileDisplaySymbols(ElfFile *elf);
-#endif //_ELF_OPS_H
+void ElfFileDisplaySymbols(ElfFile* elf);
+ElfSection** ElfFileGetSectionsByType(uint32_t* out_section_count,
+                                      uint32_t type, ElfFile* elf);
+void ElfFileDisplayRelocations(ElfFile* elf);
+#endif  //_ELF_OPS_H
