@@ -1,9 +1,11 @@
 #include "elf_ops.h"
-#include "util.h"
+
+#include <elf.h>
 #include <stdlib.h>
 #include <string.h>
-#include <elf.h>
-static ElfParsingStatus _ParseElfHeader(ElfFile *file);
+
+#include "util.h"
+static ElfParsingStatus _ParseElfHeader(ElfFile* file);
 static ElfParsingStatus _ParseElfSections(ElfFile* file);
 static void ElfFreeSectionTable(ElfFile* elf);
 static ElfParsingStatus _ParseElfSymbols(ElfFile* file);
@@ -11,17 +13,17 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file);
 static void _ElfFreeRelocationTables(ElfFile* elf);
 static void _ElfFreeSymbolsTable(ElfFile* elf);
 
-ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
+ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
   if (!out || !path) {
     return InvalidArguments;
   }
 
-  FILE *f = fopen(path, "rb");
+  FILE* f = fopen(path, "rb");
   if (!f) {
     return IoError;
   }
 
-  ElfFile *new_file = (ElfFile *)malloc(sizeof(ElfFile));
+  ElfFile* new_file = (ElfFile*)malloc(sizeof(ElfFile));
   if (!new_file) {
     fclose(f);
     return MemoryError;
@@ -61,15 +63,15 @@ ElfParsingStatus ElfFileNew(const char *path, ElfFile **out) {
   return Success;
 }
 
-static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
+static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
   if (!file) return InvalidArguments;
   uint8_t header_buffer[sizeof(Elf32_Ehdr)] = {0};
 
   rewind(file->file);
   // File too short to anything anyway
-  if (fread(header_buffer, 1, sizeof(Elf32_Ehdr), file->file) < sizeof(Elf32_Ehdr)) {
-
-      return FileTooShort;
+  if (fread(header_buffer, 1, sizeof(Elf32_Ehdr), file->file) <
+      sizeof(Elf32_Ehdr)) {
+    return FileTooShort;
   }
 
   const uint8_t expected_magic[4] = {0x7f, 0x45, 0x4c, 0x46};
@@ -77,7 +79,8 @@ static ElfParsingStatus _ParseElfHeader(ElfFile *file) {
     return NotAnElfFile;
   }
 
-  // Would be checking that we don't have a 64 bits ELF file, or that the value is unknown
+  // Would be checking that we don't have a 64 bits ELF file, or that the value
+  // is unknown
   switch (header_buffer[EI_CLASS]) {
     case ELFCLASSNONE:
       return InvalidClass;
@@ -143,29 +146,32 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
       return FileTooShort;
     }
     if (!is_big_endian()) {
-      shdr.sh_name      = byte_swap(shdr.sh_name);
-      shdr.sh_type      = byte_swap(shdr.sh_type);
-      shdr.sh_flags     = byte_swap(shdr.sh_flags);
-      shdr.sh_addr      = byte_swap(shdr.sh_addr);
-      shdr.sh_offset    = byte_swap(shdr.sh_offset);
-      shdr.sh_size      = byte_swap(shdr.sh_size);
-      shdr.sh_link      = byte_swap(shdr.sh_link);
-      shdr.sh_info      = byte_swap(shdr.sh_info);
+      shdr.sh_name = byte_swap(shdr.sh_name);
+      shdr.sh_type = byte_swap(shdr.sh_type);
+      shdr.sh_flags = byte_swap(shdr.sh_flags);
+      shdr.sh_addr = byte_swap(shdr.sh_addr);
+      shdr.sh_offset = byte_swap(shdr.sh_offset);
+      shdr.sh_size = byte_swap(shdr.sh_size);
+      shdr.sh_link = byte_swap(shdr.sh_link);
+      shdr.sh_info = byte_swap(shdr.sh_info);
       shdr.sh_addralign = byte_swap(shdr.sh_addralign);
-      shdr.sh_entsize   = byte_swap(shdr.sh_entsize);
+      shdr.sh_entsize = byte_swap(shdr.sh_entsize);
     }
     file->sections[i].header = shdr;
   }
-  // All sections are properly parsed but their names are inexistant or inaccessible. We can stop here.
-  if (file->header.e_shstrndx == SHN_UNDEF || file->header.e_shstrndx >= file->header.e_shnum) {
+  // All sections are properly parsed but their names are inexistant or
+  // inaccessible. We can stop here.
+  if (file->header.e_shstrndx == SHN_UNDEF ||
+      file->header.e_shstrndx >= file->header.e_shnum) {
     return Success;
   }
 
   Elf32_Shdr strtab_shdr = file->sections[file->header.e_shstrndx].header;
   /* What's coming is going to be some pretty dark magic.
-   * Indeed, since we can't know in advance the size of a section's name, and we don't want to keep using `fgetc`
-   * and realloc (that's kind of slow and heavy on the drive), we'll just load the entire string table at once,
-   * and from it use `strdup` to get the full name safely.
+   * Indeed, since we can't know in advance the size of a section's name, and we
+   * don't want to keep using `fgetc` and realloc (that's kind of slow and heavy
+   * on the drive), we'll just load the entire string table at once, and from it
+   * use `strdup` to get the full name safely.
    */
 
   char* string_table = malloc(strtab_shdr.sh_size);
@@ -230,16 +236,18 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
       return FileTooShort;
     }
     if (!is_big_endian()) {
-      sym.st_name  = byte_swap(sym.st_name);
+      sym.st_name = byte_swap(sym.st_name);
       sym.st_value = byte_swap(sym.st_value);
-      sym.st_size  = byte_swap(sym.st_size);
+      sym.st_size = byte_swap(sym.st_size);
       sym.st_shndx = byte_swap(sym.st_shndx);
     }
     file->symbols_table->symbols[i].sym = sym;
   }
 
-  // All symbols are properly parsed but their names are inexistant or inaccessible. We can stop here.
-  if (sym_sec->header.sh_link == SHN_UNDEF || sym_sec->header.sh_link >= file->header.e_shnum) {
+  // All symbols are properly parsed but their names are inexistant or
+  // inaccessible. We can stop here.
+  if (sym_sec->header.sh_link == SHN_UNDEF ||
+      sym_sec->header.sh_link >= file->header.e_shnum) {
     return Success;
   }
 
@@ -353,36 +361,49 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
 void ElfFileDisplaySymbols(ElfFile* elf) {
   if (!elf || !elf->symbols_table) return;
 
-  printf("\nSymbol table '.symtab' contains %d entries:\n", elf->symbols_table->count);
+  printf("\nSymbol table '.symtab' contains %d entries:\n",
+         elf->symbols_table->count);
   printf("   Num:    Value  Size Type    Bind   Vis      Ndx Name\n");
 
   for (uint32_t i = 0; i < elf->symbols_table->count; i++) {
-    ElfSymbol *s = &elf->symbols_table->symbols[i];
-    Elf32_Sym *sym = &s->sym;
-
+    ElfSymbol* s = &elf->symbols_table->symbols[i];
+    Elf32_Sym* sym = &s->sym;
 
     printf("%6d: ", i);
 
-
     printf("%08x %5d ", sym->st_value, sym->st_size);
 
-
-    const char *type_name = "NOTYPE";
+    const char* type_name = "NOTYPE";
     switch (ELF32_ST_TYPE(sym->st_info)) {
-      case STT_OBJECT:  type_name = "OBJECT";  break;
-      case STT_FUNC:    type_name = "FUNC";    break;
-      case STT_SECTION: type_name = "SECTION"; break;
-      case STT_FILE:    type_name = "FILE";    break;
-      case STT_COMMON:  type_name = "COMMON";  break;
-      case STT_TLS:     type_name = "TLS";     break;
+      case STT_OBJECT:
+        type_name = "OBJECT";
+        break;
+      case STT_FUNC:
+        type_name = "FUNC";
+        break;
+      case STT_SECTION:
+        type_name = "SECTION";
+        break;
+      case STT_FILE:
+        type_name = "FILE";
+        break;
+      case STT_COMMON:
+        type_name = "COMMON";
+        break;
+      case STT_TLS:
+        type_name = "TLS";
+        break;
     }
     printf("%-7s ", type_name);
 
-
-    const char *bind_name = "LOCAL";
+    const char* bind_name = "LOCAL";
     switch (ELF32_ST_BIND(sym->st_info)) {
-      case STB_GLOBAL: bind_name = "GLOBAL"; break;
-      case STB_WEAK:   bind_name = "WEAK";   break;
+      case STB_GLOBAL:
+        bind_name = "GLOBAL";
+        break;
+      case STB_WEAK:
+        bind_name = "WEAK";
+        break;
     }
     printf("%-6s ", bind_name);
 
@@ -404,7 +425,7 @@ void ElfFileDisplaySymbols(ElfFile* elf) {
   }
 }
 
-void ElfFileDestroy(ElfFile *elf) {
+void ElfFileDestroy(ElfFile* elf) {
   if (!elf) return;
   if (elf->file) fclose(elf->file);
   ElfFreeSectionTable(elf);
@@ -447,7 +468,7 @@ static void _ElfFreeSymbolsTable(ElfFile* elf) {
 void ElfFileDisplayHeader(ElfFile* elf) {
   if (!elf) return;
 
-  Elf32_Ehdr *h = &elf->header;
+  Elf32_Ehdr* h = &elf->header;
 
   printf("ELF Header:\n");
   printf("  Magic:   ");
@@ -457,53 +478,98 @@ void ElfFileDisplayHeader(ElfFile* elf) {
   printf("\n");
 
   printf("  Class:                             %s\n",
-         h->e_ident[EI_CLASS] == ELFCLASS32 ? "ELF32" :
-         (h->e_ident[EI_CLASS] == ELFCLASS64 ? "ELF64" : "None"));
+         h->e_ident[EI_CLASS] == ELFCLASS32
+             ? "ELF32"
+             : (h->e_ident[EI_CLASS] == ELFCLASS64 ? "ELF64" : "None"));
 
   printf("  Data:                              %s\n",
-         h->e_ident[EI_DATA] == ELFDATA2MSB ? "2's complement, big endian" :
-         (h->e_ident[EI_DATA] == ELFDATA2LSB ? "2's complement, little endian" : "None"));
+         h->e_ident[EI_DATA] == ELFDATA2MSB
+             ? "2's complement, big endian"
+             : (h->e_ident[EI_DATA] == ELFDATA2LSB
+                    ? "2's complement, little endian"
+                    : "None"));
 
-  printf("  Version:                           %d%s\n",
-         h->e_ident[EI_VERSION], h->e_ident[EI_VERSION] == EV_CURRENT ? " (current)" : "");
+  printf("  Version:                           %d%s\n", h->e_ident[EI_VERSION],
+         h->e_ident[EI_VERSION] == EV_CURRENT ? " (current)" : "");
 
   printf("  OS/ABI:                            ");
   switch (h->e_ident[EI_OSABI]) {
-    case ELFOSABI_SYSV:       printf("UNIX - System V\n"); break;
-    case ELFOSABI_HPUX:       printf("HP-UX\n"); break;
-    case ELFOSABI_NETBSD:     printf("NetBSD\n"); break;
-    case ELFOSABI_LINUX:      printf("Linux\n"); break;
-    case ELFOSABI_SOLARIS:    printf("Solaris\n"); break;
-    case ELFOSABI_ARM:        printf("ARM\n"); break;
-    case ELFOSABI_STANDALONE: printf("Standalone App\n"); break;
-    default:                  printf("<unknown: %x>\n", h->e_ident[EI_OSABI]); break;
+    case ELFOSABI_SYSV:
+      printf("UNIX - System V\n");
+      break;
+    case ELFOSABI_HPUX:
+      printf("HP-UX\n");
+      break;
+    case ELFOSABI_NETBSD:
+      printf("NetBSD\n");
+      break;
+    case ELFOSABI_LINUX:
+      printf("Linux\n");
+      break;
+    case ELFOSABI_SOLARIS:
+      printf("Solaris\n");
+      break;
+    case ELFOSABI_ARM:
+      printf("ARM\n");
+      break;
+    case ELFOSABI_STANDALONE:
+      printf("Standalone App\n");
+      break;
+    default:
+      printf("<unknown: %x>\n", h->e_ident[EI_OSABI]);
+      break;
   }
 
-  printf("  ABI Version:                       %d\n", h->e_ident[EI_ABIVERSION]);
+  printf("  ABI Version:                       %d\n",
+         h->e_ident[EI_ABIVERSION]);
 
   printf("  Type:                              ");
   switch (h->e_type) {
-    case ET_NONE: printf("NONE (None)\n"); break;
-    case ET_REL:  printf("REL (Relocatable file)\n"); break;
-    case ET_EXEC: printf("EXEC (Executable file)\n"); break;
-    case ET_DYN:  printf("DYN (Shared object file)\n"); break;
-    case ET_CORE: printf("CORE (Core file)\n"); break;
-    default:      printf("<unknown: %x>\n", h->e_type); break;
+    case ET_NONE:
+      printf("NONE (None)\n");
+      break;
+    case ET_REL:
+      printf("REL (Relocatable file)\n");
+      break;
+    case ET_EXEC:
+      printf("EXEC (Executable file)\n");
+      break;
+    case ET_DYN:
+      printf("DYN (Shared object file)\n");
+      break;
+    case ET_CORE:
+      printf("CORE (Core file)\n");
+      break;
+    default:
+      printf("<unknown: %x>\n", h->e_type);
+      break;
   }
 
   printf("  Machine:                           ");
   switch (h->e_machine) {
-    case EM_NONE:  printf("None\n"); break;
-    case EM_ARM:   printf("ARM\n"); break;
-    case EM_X86_64:printf("Advanced Micro Devices X86-64\n"); break;
-    case EM_386:   printf("Intel 80386\n"); break;
-    default:       printf("<unknown: %d>\n", h->e_machine); break;
+    case EM_NONE:
+      printf("None\n");
+      break;
+    case EM_ARM:
+      printf("ARM\n");
+      break;
+    case EM_X86_64:
+      printf("Advanced Micro Devices X86-64\n");
+      break;
+    case EM_386:
+      printf("Intel 80386\n");
+      break;
+    default:
+      printf("<unknown: %d>\n", h->e_machine);
+      break;
   }
 
   printf("  Version:                           0x%x\n", h->e_version);
   printf("  Entry point address:               0x%x\n", h->e_entry);
-  printf("  Start of program headers:          %d (bytes into file)\n", h->e_phoff);
-  printf("  Start of section headers:          %d (bytes into file)\n", h->e_shoff);
+  printf("  Start of program headers:          %d (bytes into file)\n",
+         h->e_phoff);
+  printf("  Start of section headers:          %d (bytes into file)\n",
+         h->e_shoff);
 
   printf("  Flags:                             0x%x", h->e_flags);
   if (h->e_machine == EM_ARM) {
@@ -523,88 +589,140 @@ void ElfFileDisplayHeader(ElfFile* elf) {
   printf("  Section header string table index: %d\n", h->e_shstrndx);
 }
 
-const char *ElfParsingStatusToString(ElfParsingStatus status) {
+const char* ElfParsingStatusToString(ElfParsingStatus status) {
   switch (status) {
-    case Success:                return "Success";
-    case FileTooShort:           return "File too short";
-    case IoError:                return "I/O error (could not open or read file)";
-    case NotAnElfFile:           return "Not a valid ELF file (magic mismatch)";
-    case UnsupportedMachineType: return "Unsupported machine type";
-    case UnsupportedEndianness:  return "Unsupported endianness (only Big Endian is supported)";
-    case UnknownError:           return "Unknown error";
-    case UnknownDataEncoding:    return "Unknown data encoding";
-    case InvalidClass:           return "Invalid ELF class";
-    case UnsupportedClass:       return "Unsupported ELF class (only 32-bit is supported)";
-    case UnknownClass:           return "Unknown ELF class";
-    case InvalidDataEncoding:    return "Invalid data encoding";
-    case MemoryError:            return "Memory allocation failed";
-    case InvalidArguments:       return "Invalid function arguments";
-    default:                     return "Undefined error status";
+    case Success:
+      return "Success";
+    case FileTooShort:
+      return "File too short";
+    case IoError:
+      return "I/O error (could not open or read file)";
+    case NotAnElfFile:
+      return "Not a valid ELF file (magic mismatch)";
+    case UnsupportedMachineType:
+      return "Unsupported machine type";
+    case UnsupportedEndianness:
+      return "Unsupported endianness (only Big Endian is supported)";
+    case UnknownError:
+      return "Unknown error";
+    case UnknownDataEncoding:
+      return "Unknown data encoding";
+    case InvalidClass:
+      return "Invalid ELF class";
+    case UnsupportedClass:
+      return "Unsupported ELF class (only 32-bit is supported)";
+    case UnknownClass:
+      return "Unknown ELF class";
+    case InvalidDataEncoding:
+      return "Invalid data encoding";
+    case MemoryError:
+      return "Memory allocation failed";
+    case InvalidArguments:
+      return "Invalid function arguments";
+    default:
+      return "Undefined error status";
   }
 }
 
-void ElfFileDisplaySections(ElfFile *elf) {
+void ElfFileDisplaySections(ElfFile* elf) {
   if (!elf || !elf->sections) return;
 
   printf("There are %d section headers, starting at offset 0x%x:\n\n",
          elf->header.e_shnum, elf->header.e_shoff);
 
   printf("Section Headers:\n");
-  printf("  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al\n");
+  printf(
+      "  [Nr] Name              Type            Addr     Off    Size   ES "
+      "Flg "
+      "Lk Inf Al\n");
 
   for (int i = 0; i < elf->header.e_shnum; i++) {
-    ElfSection *s = &elf->sections[i];
-    Elf32_Shdr *h = &s->header;
+    ElfSection* s = &elf->sections[i];
+    Elf32_Shdr* h = &s->header;
 
     printf("  [%2d] %-17.17s ", i, s->name ? s->name : "");
 
-    const char *type_name = "UNKNOWN";
+    const char* type_name = "UNKNOWN";
     switch (h->sh_type) {
-      case SHT_NULL:     type_name = "NULL";     break;
-      case SHT_PROGBITS: type_name = "PROGBITS"; break;
-      case SHT_SYMTAB:   type_name = "SYMTAB";   break;
-      case SHT_STRTAB:   type_name = "STRTAB";   break;
-      case SHT_RELA:     type_name = "RELA";     break;
-      case SHT_HASH:     type_name = "HASH";     break;
-      case SHT_DYNAMIC:  type_name = "DYNAMIC";  break;
-      case SHT_NOTE:     type_name = "NOTE";     break;
-      case SHT_NOBITS:   type_name = "NOBITS";   break;
-      case SHT_REL:      type_name = "REL";      break;
-      case SHT_SHLIB:    type_name = "SHLIB";    break;
-      case SHT_DYNSYM:   type_name = "DYNSYM";   break;
-      case SHT_INIT_ARRAY: type_name = "INIT_ARRAY"; break;
-      case SHT_FINI_ARRAY: type_name = "FINI_ARRAY"; break;
-      case SHT_ARM_ATTRIBUTES: type_name = "ARM_ATTRIBUTES"; break;
+      case SHT_NULL:
+        type_name = "NULL";
+        break;
+      case SHT_PROGBITS:
+        type_name = "PROGBITS";
+        break;
+      case SHT_SYMTAB:
+        type_name = "SYMTAB";
+        break;
+      case SHT_STRTAB:
+        type_name = "STRTAB";
+        break;
+      case SHT_RELA:
+        type_name = "RELA";
+        break;
+      case SHT_HASH:
+        type_name = "HASH";
+        break;
+      case SHT_DYNAMIC:
+        type_name = "DYNAMIC";
+        break;
+      case SHT_NOTE:
+        type_name = "NOTE";
+        break;
+      case SHT_NOBITS:
+        type_name = "NOBITS";
+        break;
+      case SHT_REL:
+        type_name = "REL";
+        break;
+      case SHT_SHLIB:
+        type_name = "SHLIB";
+        break;
+      case SHT_DYNSYM:
+        type_name = "DYNSYM";
+        break;
+      case SHT_INIT_ARRAY:
+        type_name = "INIT_ARRAY";
+        break;
+      case SHT_FINI_ARRAY:
+        type_name = "FINI_ARRAY";
+        break;
+      case SHT_ARM_ATTRIBUTES:
+        type_name = "ARM_ATTRIBUTES";
+        break;
     }
     printf("%-15s ", type_name);
 
-    printf("%08x %06x %06x %02x ",
-           h->sh_addr, h->sh_offset, h->sh_size, h->sh_entsize);
+    printf("%08x %06x %06x %02x ", h->sh_addr, h->sh_offset, h->sh_size,
+           h->sh_entsize);
 
     // Comprehensive Flags Decoding
     char flags_buf[12] = {0};
     int f_idx = 0;
-    if (h->sh_flags & SHF_WRITE)            flags_buf[f_idx++] = 'W';
-    if (h->sh_flags & SHF_ALLOC)            flags_buf[f_idx++] = 'A';
-    if (h->sh_flags & SHF_EXECINSTR)        flags_buf[f_idx++] = 'X';
-    if (h->sh_flags & SHF_MERGE)            flags_buf[f_idx++] = 'M';
-    if (h->sh_flags & SHF_STRINGS)          flags_buf[f_idx++] = 'S';
-    if (h->sh_flags & SHF_INFO_LINK)        flags_buf[f_idx++] = 'I';
-    if (h->sh_flags & SHF_LINK_ORDER)       flags_buf[f_idx++] = 'L';
+    if (h->sh_flags & SHF_WRITE) flags_buf[f_idx++] = 'W';
+    if (h->sh_flags & SHF_ALLOC) flags_buf[f_idx++] = 'A';
+    if (h->sh_flags & SHF_EXECINSTR) flags_buf[f_idx++] = 'X';
+    if (h->sh_flags & SHF_MERGE) flags_buf[f_idx++] = 'M';
+    if (h->sh_flags & SHF_STRINGS) flags_buf[f_idx++] = 'S';
+    if (h->sh_flags & SHF_INFO_LINK) flags_buf[f_idx++] = 'I';
+    if (h->sh_flags & SHF_LINK_ORDER) flags_buf[f_idx++] = 'L';
     if (h->sh_flags & SHF_OS_NONCONFORMING) flags_buf[f_idx++] = 'O';
-    if (h->sh_flags & SHF_GROUP)            flags_buf[f_idx++] = 'G';
-    if (h->sh_flags & SHF_TLS)              flags_buf[f_idx++] = 'T';
-    if (h->sh_flags & SHF_EXCLUDE)          flags_buf[f_idx++] = 'E';
+    if (h->sh_flags & SHF_GROUP) flags_buf[f_idx++] = 'G';
+    if (h->sh_flags & SHF_TLS) flags_buf[f_idx++] = 'T';
+    if (h->sh_flags & SHF_EXCLUDE) flags_buf[f_idx++] = 'E';
 
     printf("%-3s ", flags_buf);
 
     printf("%2u %3u %2u\n", h->sh_link, h->sh_info, h->sh_addralign);
   }
 
-  printf("Key to Flags:\n"
-         "  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),\n"
-         "  L (link order), O (extra OS processing required), G (group), T (TLS),\n"
-         "  E (exclude), D (mbind), x (unknown), o (OS specific), p (processor specific)\n");
+  printf(
+      "Key to Flags:\n"
+      "  W (write), A (alloc), X (execute), M (merge), S (strings), I "
+      "(info),\n"
+      "  L (link order), O (extra OS processing required), G (group), T "
+      "(TLS),\n"
+      "  E (exclude), D (mbind), x (unknown), o (OS specific), p (processor "
+      "specific)\n");
 }
 
 ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf) {
@@ -638,7 +756,9 @@ int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf) {
     return 1;
   }
 
-  if (fseek(elf->file, section->header.sh_offset, SEEK_SET) != 0) {return 0;}
+  if (fseek(elf->file, section->header.sh_offset, SEEK_SET) != 0) {
+    return 0;
+  }
   uint8_t* section_contents = malloc(section->header.sh_size);
 
   if (!section_contents) {
@@ -653,8 +773,7 @@ int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf) {
   // We're printing the raw contents of the section,
   // so there's no need to manage endianness.
   for (int i = 0; i < section->header.sh_size; i++) {
-    printf("%02x%c", section_contents[i],
-           ((i + 1) % 16 == 0) ? '\n' : ' ');
+    printf("%02x%c", section_contents[i], ((i + 1) % 16 == 0) ? '\n' : ' ');
   }
   free(section_contents);
   return 1;

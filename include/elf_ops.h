@@ -4,18 +4,18 @@
 #include <stdio.h>
 
 typedef struct ElfSection {
-    char* name;
-    Elf32_Shdr header;
+  char* name;
+  Elf32_Shdr header;
 } ElfSection;
 
 typedef struct ElfSymbol {
-    char* name;
-    Elf32_Sym sym;
+  char* name;
+  Elf32_Sym sym;
 } ElfSymbol;
 
 typedef struct ElfSymbolsTable {
-    uint32_t count;
-    ElfSymbol* symbols;
+  uint32_t count;
+  ElfSymbol* symbols;
 } ElfSymbolsTable;
 
 typedef struct ElfRelocationTable {
@@ -33,7 +33,7 @@ typedef struct ElfRelocationTable {
  * free_elf_file().
  */
 typedef struct ElfFile {
-  FILE *file;        /**< Open FILE* for the underlying file (may be NULL). */
+  FILE* file;        /**< Open FILE* for the underlying file (may be NULL). */
   Elf32_Ehdr header; /**< Parsed ELF header (host endianness). */
   ElfSection* sections;
   ElfSymbolsTable* symbols_table;
@@ -57,19 +57,16 @@ typedef enum ElfParsingStatus {
   UnknownClass,
   InvalidDataEncoding,
   MemoryError,
-  InvalidArguments, // Just in case someone calls our functions
-                    // with the wrong args
+  InvalidArguments,  // Just in case someone calls our functions
+                     // with the wrong args
 
 } ElfParsingStatus;
 
-
-
-
-ElfParsingStatus ElfFileNew(const char *path, ElfFile **out);
-void ElfFileDisplayHeader(ElfFile *elf);
-const char *ElfParsingStatusToString(ElfParsingStatus status);
-void ElfFileDestroy(ElfFile *elf);
-void ElfFileDisplaySections(ElfFile *elf);
+ElfParsingStatus ElfFileNew(const char* path, ElfFile** out);
+void ElfFileDisplayHeader(ElfFile* elf);
+const char* ElfParsingStatusToString(ElfParsingStatus status);
+void ElfFileDestroy(ElfFile* elf);
+void ElfFileDisplaySections(ElfFile* elf);
 ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf);
 int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf);
 void ElfFileDisplaySymbols(ElfFile* elf);
