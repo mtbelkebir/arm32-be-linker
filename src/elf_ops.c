@@ -283,7 +283,6 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
   free(string_table);
   return Success;
 }
-
 static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
   if (!file || !file->sections) return InvalidArguments;
 
@@ -291,7 +290,6 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
   ElfSection** rel_sections =
       ElfFileGetSectionsByType(&rel_section_count, SHT_REL, file);
 
-  // Nothing more to do, there are no relocations.
   if (rel_section_count == 0 || !rel_sections) {
     file->rel_tables_count = 0;
     free(rel_sections);
@@ -309,12 +307,24 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
   file->rel_tables = reloc_table;
 
   for (uint32_t i = 0; i < rel_section_count; i++) {
-    // Update count so _ElfFreeRelocationTables knows how many have been
-    // partially allocated
     file->rel_tables_count = i;
-    reloc_table[i].offset = rel_sections[i]->header.sh_offset;
     reloc_table[i].name = strdup(rel_sections[i]->name);
     reloc_table[i].target_section = rel_sections[i]->header.sh_info;
+    reloc_table[i].offset = rel_sections[i]->header.sh_offset;
+
+    uint32_t entry_count =
+        rel_sections[i]->header.sh_size / rel_sections[i]->header.sh_entsize;
+
+    ElfRelocationEntry* entries =
+        calloc(entry_count, sizeof(ElfRelocationEntry));
+    if (!entries) {
+      _ElfFreeRelocationTables(file);
+      free(rel_sections);
+      return MemoryError;
+    }
+
+    reloc_table[i].count = entry_count;
+    reloc_table[i].entries = entries;
 
     if (fseek(file->file, rel_sections[i]->header.sh_offset, SEEK_SET) != 0) {
       _ElfFreeRelocationTables(file);
@@ -322,33 +332,23 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
       return IoError;
     }
 
-    uint32_t entry_count =
-        rel_sections[i]->header.sh_size / rel_sections[i]->header.sh_entsize;
+    for (uint32_t j = 0; j < entry_count; j++) {
+      if (fread(&entries[j].rel, sizeof(Elf32_Rel), 1, file->file) != 1) {
+        _ElfFreeRelocationTables(file);
+        free(rel_sections);
+        return IoError;
+      }
 
-    Elf32_Rel* entries = calloc(entry_count, sizeof(Elf32_Rel));
-    if (!entries) {
-      _ElfFreeRelocationTables(file);
-      free(rel_sections);
-      return MemoryError;
-    }
+      if (!is_big_endian()) {
+        entries[j].rel.r_offset = byte_swap(entries[j].rel.r_offset);
+        entries[j].rel.r_info = byte_swap(entries[j].rel.r_info);
+      }
 
-    if (fread(entries, sizeof(Elf32_Rel), entry_count, file->file) !=
-        entry_count) {
-      free(entries);
-      _ElfFreeRelocationTables(file);
-      free(rel_sections);
-      return IoError;
-    }
-
-    reloc_table[i].count = entry_count;
-    reloc_table[i].entries = entries;
-
-    if (!is_big_endian()) {
-      for (uint32_t j = 0; j < entry_count; j++) {
-        reloc_table[i].entries[j].r_offset =
-            byte_swap(reloc_table[i].entries[j].r_offset);
-        reloc_table[i].entries[j].r_info =
-            byte_swap(reloc_table[i].entries[j].r_info);
+      uint32_t sym_idx = ELF32_R_SYM(entries[j].rel.r_info);
+      if (file->symbols_table && sym_idx < file->symbols_table->count) {
+        entries[j].symbol = &file->symbols_table->symbols[sym_idx];
+      } else {
+        entries[j].symbol = NULL;
       }
     }
   }
@@ -792,11 +792,10 @@ void ElfFileDisplayRelocations(ElfFile* elf) {
     printf(" Offset     Info    Type            Sym.Value  Sym. Name\n");
 
     for (uint32_t j = 0; j < table->count; j++) {
-      Elf32_Rel* rel = &table->entries[j];
-      uint32_t sym_idx = ELF32_R_SYM(rel->r_info);
-      uint32_t type = ELF32_R_TYPE(rel->r_info);
+      ElfRelocationEntry* entry = &table->entries[j];
+      uint32_t type = ELF32_R_TYPE(entry->rel.r_info);
 
-      printf("%08x  %08x ", rel->r_offset, rel->r_info);
+      printf("%08x  %08x ", entry->rel.r_offset, entry->rel.r_info);
 
       const char* type_name = "UNKNOWN";
       switch (type) {
@@ -827,10 +826,12 @@ void ElfFileDisplayRelocations(ElfFile* elf) {
       }
       printf("%-15s ", type_name);
 
-      // Lookup symbol information if available
-      if (elf->symbols_table && sym_idx < elf->symbols_table->count) {
-        ElfSymbol* sym = &elf->symbols_table->symbols[sym_idx];
-        printf("%08x   %s", sym->sym.st_value, sym->name ? sym->name : "");
+      if (entry->symbol) {
+        printf("%08x   %s", entry->symbol->sym.st_value,
+               entry->symbol->name ? entry->symbol->name : "");
+      } else {
+        uint32_t sym_idx = ELF32_R_SYM(entry->rel.r_info);
+        printf("%08x   [Index %d]", 0, sym_idx);
       }
 
       printf("\n");
