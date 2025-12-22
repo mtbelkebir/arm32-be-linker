@@ -26,10 +26,9 @@ Contact: Guillaume.Huard@imag.fr
 #include <stdlib.h>
 #include <string.h>
 
-#include "elf_ops.h"
 #include "debug.h"
-void usage(char *name)
-{
+#include "elf_ops.h"
+void usage(char *name) {
   fprintf(stderr,
           "Usage:\n"
           "%s [ --help ] [ --option1 value ] [ --option2 value ] [ --debug "
@@ -46,24 +45,37 @@ int main(int argc, char *argv[]) {
   ElfParsingStatus status;
 
   struct option longopts[] = {
-    {"debug", required_argument, NULL, 'd'},
-    {"header", required_argument, NULL, 'H'},
-    {"section-table", required_argument, NULL, 'S'},
-    {"hex-dump", required_argument, NULL, 'x'},
-    {"symbols", required_argument, NULL, 's'},
-    {"help", no_argument, NULL, 'h'},
-    {NULL, 0, NULL, 0}
-  };
+      {"debug", required_argument, NULL, 'd'},
+      {"header", required_argument, NULL, 'H'},
+      {"section-table", required_argument, NULL, 'S'},
+      {"hex-dump", required_argument, NULL, 'x'},
+      {"symbols", required_argument, NULL, 's'},
+      {"relocations-table", required_argument, NULL, 'r'},
+      {"help", no_argument, NULL, 'h'},
+      {NULL, 0, NULL, 0}};
 
   char *filename_obj = NULL;
   char *section_name = NULL;
 
-  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h", longopts, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h:r", longopts, NULL)) !=
+         -1) {
     switch (opt) {
+      case 'r':
+        status = ElfFileNew(optarg, &f);
+        if (status != Success) {
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
+        } else {
+          ElfFileDisplayRelocations(f);
+          ElfFileDestroy(f);
+        }
+        break;
+
       case 'H':
         status = ElfFileNew(optarg, &f);
         if (status != Success) {
-          fprintf(stderr, "Error parsing file %s: %s\n", optarg, ElfParsingStatusToString(status));
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
         } else {
           ElfFileDisplayHeader(f);
           ElfFileDestroy(f);
@@ -73,7 +85,8 @@ int main(int argc, char *argv[]) {
       case 'S':
         status = ElfFileNew(optarg, &f);
         if (status != Success) {
-          fprintf(stderr, "Error parsing file %s: %s\n", optarg, ElfParsingStatusToString(status));
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
         } else {
           ElfFileDisplaySections(f);
           ElfFileDestroy(f);
@@ -86,7 +99,8 @@ int main(int argc, char *argv[]) {
           filename_obj = argv[optind++];
           status = ElfFileNew(filename_obj, &f);
           if (status != Success) {
-            fprintf(stderr, "Error parsing file %s: %s\n", filename_obj, ElfParsingStatusToString(status));
+            fprintf(stderr, "Error parsing file %s: %s\n", filename_obj,
+                    ElfParsingStatusToString(status));
           } else {
             printf("Hex dump of section '%s':\n", section_name);
             ElfFileDisplaySectionContentsByName(section_name, f);
@@ -100,7 +114,8 @@ int main(int argc, char *argv[]) {
       case 's':
         status = ElfFileNew(optarg, &f);
         if (status != Success) {
-          fprintf(stderr, "Error parsing file %s: %s\n", optarg, ElfParsingStatusToString(status));
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
         } else {
           ElfFileDisplaySymbols(f);
           ElfFileDestroy(f);
