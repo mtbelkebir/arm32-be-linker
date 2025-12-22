@@ -44,20 +44,19 @@ int main(int argc, char *argv[]) {
   ElfFile *f = NULL;
   ElfParsingStatus status;
 
-  struct option longopts[] = {
-      {"debug", required_argument, NULL, 'd'},
-      {"header", required_argument, NULL, 'H'},
-      {"section-table", required_argument, NULL, 'S'},
-      {"hex-dump", required_argument, NULL, 'x'},
-      {"symbols", required_argument, NULL, 's'},
-      {"relocations-table", required_argument, NULL, 'r'},
-      {"help", no_argument, NULL, 'h'},
-      {NULL, 0, NULL, 0}};
+  struct option longopts[] = {{"debug", required_argument, NULL, 'd'},
+                              {"header", required_argument, NULL, 'H'},
+                              {"section-table", required_argument, NULL, 'S'},
+                              {"hex-dump", required_argument, NULL, 'x'},
+                              {"symbols", required_argument, NULL, 's'},
+                              {"relocations", required_argument, NULL, 'r'},
+                              {"help", no_argument, NULL, 'h'},
+                              {NULL, 0, NULL, 0}};
 
   char *filename_obj = NULL;
   char *section_name = NULL;
 
-  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h:r", longopts, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h:r:", longopts, NULL)) !=
          -1) {
     switch (opt) {
       case 'r':
