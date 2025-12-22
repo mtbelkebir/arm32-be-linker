@@ -20,17 +20,15 @@ Contact: Guillaume.Huard@imag.fr
          51 avenue Jean Kuntzmann
          38330 Montbonnot Saint-Martin
 */
-#include "debug.h"
-#include "elf_ops.h"
-#include "logger.h"
 #include <elf.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "elf_ops.h"
+#include <string.h>
 
-void usage(char *name)
-{
+#include "debug.h"
+#include "elf_ops.h"
+void usage(char *name) {
   fprintf(stderr,
           "Usage:\n"
           "%s [ --help ] [ --option1 value ] [ --option2 value ] [ --debug "
@@ -41,100 +39,100 @@ void usage(char *name)
           name);
 }
 
-void sample_function(char *option1, char *option2)
-{
-  debug("Beginning of the sample function\n");
-  debug("Given values are [ %s ] and [ %s ], time to print them:\n", option1,
-        option2);
-  printf("Option 1: %s\n", option1);
-  printf("Option 2: %s\n", option2);
-  debug("End of the sample function\n");
-}
-
-void header_elf(FILE *elf_file) {
-  // Elf32_Ehdr elf = extract_elf_informations(elf_file);
-
-  print_elf_header(&elf);
-}
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   int opt;
+  ElfFile *f = NULL;
+  ElfParsingStatus status;
 
   struct option longopts[] = {{"debug", required_argument, NULL, 'd'},
-                              {"option1", required_argument, NULL, '1'},
-                              {"option2", required_argument, NULL, '2'},
-                              {"header", required_argument, NULL, 'e'},
+                              {"header", required_argument, NULL, 'H'},
+                              {"section-table", required_argument, NULL, 'S'},
+                              {"hex-dump", required_argument, NULL, 'x'},
+                              {"symbols", required_argument, NULL, 's'},
+                              {"relocations", required_argument, NULL, 'r'},
                               {"help", no_argument, NULL, 'h'},
                               {NULL, 0, NULL, 0}};
 
   char *filename_obj = NULL;
+  char *section_name = NULL;
 
-  while ((opt = getopt_long(argc, argv, "1:2:e:d:h", longopts, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h:r:", longopts, NULL)) !=
+         -1) {
     switch (opt) {
-    case '1':
-      break;
-    case '2':
-      Elf32_File *f = read_elf(optarg);
-      // display_elf_sections(f);
-      // display_elf_section_contents(".text", f);
+      case 'r':
+        status = ElfFileNew(optarg, &f);
+        if (status != Success) {
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
+        } else {
+          ElfFileDisplayRelocations(f);
+          ElfFileDestroy(f);
+        }
+        break;
 
-      // Essai pour la table des symboles:
-      display_sym_tab(f);
-      free_elf_file(f);
-      break;
-    case 'h':
-      usage(argv[0]);
-      exit(0);
-    case 'e':
-      // Get the filename:
-      filename_obj = optarg;
+      case 'H':
+        status = ElfFileNew(optarg, &f);
+        if (status != Success) {
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
+        } else {
+          ElfFileDisplayHeader(f);
+          ElfFileDestroy(f);
+        }
+        break;
 
-      Elf32_File file;
-      file.file = fopen(filename_obj, "rb");
-      file.e_ehdr = *initialize_ehdr();
+      case 'S':
+        status = ElfFileNew(optarg, &f);
+        if (status != Success) {
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
+        } else {
+          ElfFileDisplaySections(f);
+          ElfFileDestroy(f);
+        }
+        break;
 
-      if (extract_elf_informations(&file.e_ehdr, file.file) !=
-          SUCCESS_EXTRACT) {
-        printf("Erreur extraction EHDR");
-      }
+      case 'x':
+        section_name = optarg;
+        if (optind < argc) {
+          filename_obj = argv[optind++];
+          status = ElfFileNew(filename_obj, &f);
+          if (status != Success) {
+            fprintf(stderr, "Error parsing file %s: %s\n", filename_obj,
+                    ElfParsingStatusToString(status));
+          } else {
+            printf("Hex dump of section '%s':\n", section_name);
+            ElfFileDisplaySectionContentsByName(section_name, f);
+            ElfFileDestroy(f);
+          }
+        } else {
+          fprintf(stderr, "Option -x requires a section name AND a filename\n");
+        }
+        break;
 
-      file.e_shrdrs =
-          initialize_shdr(file.e_ehdr.e_shentsize, file.e_ehdr.e_shnum);
+      case 's':
+        status = ElfFileNew(optarg, &f);
+        if (status != Success) {
+          fprintf(stderr, "Error parsing file %s: %s\n", optarg,
+                  ElfParsingStatusToString(status));
+        } else {
+          ElfFileDisplaySymbols(f);
+          ElfFileDestroy(f);
+        }
+        break;
 
-      if (extract_section_headers(file.e_shrdrs, file.file, file.e_ehdr.e_shoff,
-                                  file.e_ehdr.e_shnum,
-                                  file.e_ehdr.e_ident) != SUCCESS_EXTRACT) {
-        printf("Erreur extraction SHDRS");
-      }
+      case 'd':
+        add_debug_to(optarg);
+        break;
 
-      file.sym = initialize_sym(file.e_shrdrs, file.e_ehdr.e_shnum, file.file);
+      case 'h':
+        usage(argv[0]);
+        return 0;
 
-      if (extract_sym(file.sym, file.e_ehdr.e_ident, file.e_shrdrs,
-                      file.e_ehdr.e_shnum, file.file) != SUCCESS_EXTRACT) {
-        printf("Erreur extraction SYM");
-      }
-
-      display_elf_headers(&file.e_ehdr);
-      display_elf_sections(&file);
-      display_sym_tab(&file);
-
-      // free_ehdr(&file.e_ehdr);
-      free_shdr(file.e_shrdrs);
-      free_sym(file.sym);
-
-      return 0;
-      break;
-    case 'd':
-      add_debug_to(optarg);
-      break;
-    default:
-      fprintf(stderr, "Unrecognized option %c\n", opt);
-      usage(argv[0]);
-      exit(1);
+      default:
+        usage(argv[0]);
+        exit(1);
     }
   }
-
-  // sample_function(option1, option2);
   return 0;
 }

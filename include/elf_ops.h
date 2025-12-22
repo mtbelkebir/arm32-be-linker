@@ -3,228 +3,191 @@
 #include <elf.h>
 #include <stdio.h>
 
-#define SECTION_NAME_SIZE 64
-#define SYM_NAME_SIZE 64
+/**
+ * @brief Represents a single ELF section.
+ *
+ * Contains section metadata including the section name and header.
+ * The name field is heap-allocated and must be freed.
+ */
+typedef struct ElfSection {
+  char* name;        /**< Section name (heap-allocated, may be "<corrupt>"). */
+  Elf32_Shdr header; /**< Standard ELF32 section header. */
+} ElfSection;
+
+/**
+ * @brief Represents a single ELF symbol.
+ *
+ * Contains symbol metadata including the symbol name and symbol table entry.
+ * The name field is heap-allocated and must be freed.
+ */
+typedef struct ElfSymbol {
+  char* name;    /**< Symbol name (heap-allocated). */
+  Elf32_Sym sym; /**< Standard ELF32 symbol table entry. */
+} ElfSymbol;
+
+/**
+ * @brief Container for a collection of ELF symbols.
+ *
+ * Owns an array of ElfSymbol structures parsed from a symbol table section.
+ */
+typedef struct ElfSymbolsTable {
+  uint32_t count;     /**< Number of symbols in the array. */
+  ElfSymbol* symbols; /**< Heap-allocated array of symbols. */
+} ElfSymbolsTable;
+
+/**
+ * @brief Represents a single relocation entry with symbol reference.
+ *
+ * Combines a standard ELF relocation entry with a pointer to the
+ * associated symbol for convenient access.
+ */
+typedef struct ElfRelocationEntry {
+  Elf32_Rel rel;     /**< Standard ELF32 relocation entry. */
+  ElfSymbol* symbol; /**< Pointer to associated symbol (may be NULL). */
+} ElfRelocationEntry;
+
+/**
+ * @brief Represents a relocation table for a specific section.
+ *
+ * Contains metadata about the relocation section and an array of
+ * relocation entries with resolved symbol pointers.
+ */
+typedef struct ElfRelocationTable {
+  char* name;                  /**< Relocation section name (heap-allocated). */
+  uint32_t target_section;     /**< Index of section being relocated. */
+  uint32_t offset;             /**< File offset of relocation entries. */
+  uint32_t count;              /**< Number of relocation entries. */
+  ElfRelocationEntry* entries; /**< Heap-allocated array of entries. */
+} ElfRelocationTable;
 
 /**
  * @brief In-memory representation of a 32-bit ELF file.
  *
  * The struct owns heap-allocated members and should be freed with
- * free_elf_file().
+ * ElfFileDestroy().
  */
-typedef struct Elf32_File {
-  FILE *file;        /**< Open FILE* for the underlying file (may be NULL). */
-  Elf32_Ehdr e_ehdr; /**< Parsed ELF header (host endianness). */
-  Elf32_Shdr *
-      e_shrdrs; /**< Array of section headers (heap-allocated), NULL if none. */
-  Elf32_Sym *sym;
+typedef struct ElfFile {
+  FILE* file;        /**< Open FILE* for the underlying file (may be NULL). */
+  Elf32_Ehdr header; /**< Parsed ELF header (host endianness). */
+  ElfSection* sections;           /**< Heap-allocated array of sections. */
+  ElfSymbolsTable* symbols_table; /**< Parsed symbol table (may be NULL). */
+  ElfRelocationTable* rel_tables; /**< Heap-allocated array of reloc tables. */
+  uint16_t rel_tables_count;      /**< Number of relocation tables. */
   // TODO: Check if there aren't more required fields
-} Elf32_File;
+} ElfFile;
 
 /**
- * @brief Read and parse an ELF file into a heap-allocated container.
+ * @brief Status codes returned by ELF parsing operations.
  *
- * This function opens the file, reads the ELF header and section headers
- * (converting to host endianness when necessary) and returns an
- * allocated Elf32_File structure.
- *
- * @param path Path to the ELF file to read.
- * @return Pointer to allocated Elf32_File on success, NULL on error.
- *
- * @note Caller is responsible for calling free_elf_file() to release resources.
+ * These codes indicate success or specific failure modes when
+ * loading and parsing ELF files.
  */
-Elf32_File *read_elf(const char *path);
+typedef enum ElfParsingStatus {
+  Success,                /**< Operation completed successfully. */
+  FileTooShort,           /**< File is smaller than minimum ELF size. */
+  IoError,                /**< File I/O operation failed. */
+  NotAnElfFile,           /**< File lacks ELF magic number. */
+  UnexpectedEof,          /**< Unexpected end of file during parsing. */
+  UnsupportedMachineType, /**< ELF machine type not supported. */
+  UnsupportedEndianness,  /**< ELF endianness not supported. */
+  UnknownError,           /**< Unspecified error occurred. */
+  UnknownDataEncoding,    /**< Data encoding field has invalid value. */
+  InvalidClass,           /**< ELF class field has invalid value. */
+  UnsupportedClass,       /**< ELF class not supported (e.g., 64-bit). */
+  UnknownClass,           /**< ELF class field has unknown value. */
+  InvalidDataEncoding,    /**< Data encoding is invalid. */
+  MemoryError,            /**< Memory allocation failed. */
+  InvalidArguments,       /**< Function called with invalid arguments. */
+} ElfParsingStatus;
 
 /**
- * @brief Free an Elf32_File and its owned resources.
+ * @brief Creates a new ElfFile by parsing the file at the given path.
  *
- * Closes the underlying FILE* (if open), frees the section headers array
- * and then frees the Elf32_File structure itself.
+ * @param path Path to the ELF file to parse.
+ * @param out Pointer to receive the newly allocated ElfFile on success.
+ * @return Success on success, or an error code indicating the failure reason.
  *
- * @param file Pointer returned by read_elf(). If NULL the function does nothing.
+ * On success, the caller owns the returned ElfFile and must call
+ * ElfFileDestroy() to free it.
  */
-void free_elf_file(Elf32_File *file);
+ElfParsingStatus ElfFileNew(const char* path, ElfFile** out);
 
 /**
- * @brief Prints the header of the specified ELF File
+ * @brief Displays the ELF header to stdout.
  *
+ * @param elf The ELF file whose header should be displayed.
  */
-void print_elf_header(Elf32_File *f);
+void ElfFileDisplayHeader(ElfFile* elf);
 
 /**
- * @brief Prints the section table of the specified
+ * @brief Converts an ElfParsingStatus code to a human-readable string.
  *
- * @param f
+ * @param status The status code to convert.
+ * @return A constant string describing the status.
  */
-void print_section_table(Elf32_File *f);
+const char* ElfParsingStatusToString(ElfParsingStatus status);
 
 /**
- * @brief Extract all informations in a ELF file and return the structure
- * contains all the informations
+ * @brief Frees all resources associated with an ElfFile.
  *
- * @pre A file correctly open
- * @post A Elf32_Ehdr with all informations insert from the ELF file
+ * @param elf The ELF file to destroy. May be NULL (no-op).
  *
- * @param elf_file
- * @return Elf32_Ehdr
+ * Closes the file handle and frees all heap-allocated members.
  */
-Elf32_Ehdr __internal_extract_elf_header(FILE *elf_file);
+void ElfFileDestroy(ElfFile* elf);
 
 /**
- * @brief Display all the informations in the elf structure
+ * @brief Displays the section table to stdout.
  *
- * @pre Elf structure correctly initiate
- * @post Display all informations with traduction if necessary
- *
- * @param elf
+ * @param elf The ELF file whose sections should be displayed.
  */
-void __internal_display_elf_header(Elf32_Ehdr header_informations);
+void ElfFileDisplaySections(ElfFile* elf);
 
 /**
- * @brief Extract all the informations from the section table of a ELF File
+ * @brief Retrieves a section by name.
  *
- * ! free() is required after using the structure
+ * @param name The name of the section to find.
+ * @param elf The ELF file to search.
+ * @return Pointer to the ElfSection if found, NULL otherwise.
  *
- * @param elf_file
- * @param e_shoff
- * @param e_shnum
- * @param e_shentsize
- * @param e_ident
- * @return Elf32_Shdr*
+ * The returned pointer is owned by the ElfFile and must not be freed.
  */
-Elf32_Shdr __internal_extract_elf_section(FILE *elf_file, uint32_t e_shoff,
-                                          uint32_t e_shnum,
-                                          uint32_t e_shentsize,
-                                          unsigned char e_ident[EI_DATA]);
-
-// ! I don't know the params of this one
-void __internal_display_elf_section();
+ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf);
 
 /**
- * @brief Get the elf section name object
+ * @brief Displays the contents of a section as hexadecimal dump.
  *
- * @return char* Name of the section, NULL in case of error, or if there's no section header string table
- * To be freed by the user.
+ * @param name The name of the section to display.
+ * @param elf The ELF file containing the section.
+ * @return 0 on success, non-zero on failure (e.g., section not found).
  */
-char *get_elf_section_name(Elf32_Shdr *, Elf32_File *);
+int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf);
 
 /**
- * @brief Displays all sections of the given ELF file in a formatted table.
+ * @brief Displays the symbol table to stdout.
  *
- * Prints a section header table matching the format of `readelf -S`, showing
- * all sections with their properties including name, type, address, offset,
- * size, flags, and other metadata.
- *
- * @param f Pointer to an Elf32_File structure opened with read_elf().
- *
- * @pre f is not NULL and contains valid section header data.
- * @post Formatted section table printed to stdout.
- *
- * @note Section names are retrieved from the section header string table.
- * @note Flags displayed: W=Write, A=Alloc, X=Exec, M=Merge, S=Strings, I=Info, L=Link.
- * @note If a section name cannot be retrieved, an empty string is displayed.
- *
- * @see display_elf_section_contents() to display section contents.
+ * @param elf The ELF file whose symbols should be displayed.
  */
-void display_elf_sections(Elf32_File *f);
+void ElfFileDisplaySymbols(ElfFile* elf);
 
 /**
- * @brief Display the contents of a section by name.
+ * @brief Retrieves all sections of a specific type.
  *
- * Searches for a section with the given name in the ELF file and displays
- * its raw contents as 32-bit words in hexadecimal format (4 words per line).
+ * @param out_section_count Pointer to receive the number of matching sections.
+ * @param type The section type (e.g., SHT_PROGBITS, SHT_REL).
+ * @param elf The ELF file to search.
+ * @return Heap-allocated array of pointers to matching sections, or NULL.
  *
- * @param section_name Name of the section to display (e.g., ".text", ".data")
- * @param f Pointer to an Elf32_File structure opened with read_elf()
- *
- * @return 1 on success, -1 if section not found, 0 on I/O error
- *
- * @note The section contents are byte-swapped if necessary to match host endianness.
- * @note Section names are matched exactly (case-sensitive).
+ * The caller must free the returned array (but not the individual sections).
  */
-int display_elf_section_contents(const char *section_name, Elf32_File *f);
+ElfSection** ElfFileGetSectionsByType(uint32_t* out_section_count,
+                                      uint32_t type, ElfFile* elf);
 
 /**
- * @brief Extract all informations in a ELF file and return the structure
- * contains all the informations
+ * @brief Displays all relocation tables to stdout.
  *
- * @pre A file correctly open
- * @post A Elf32_Ehdr with all informations insert from the ELF file
- *
- * @param elf_file
- * @return Elf32_Ehdr
- *
- * @exception CLOSES THE ENTIRE PROGRAM IF THE ELF HEADER IS INVALID
+ * @param elf The ELF file whose relocations should be displayed.
  */
-EXTRACT_STATUS extract_elf_informations(Elf32_Ehdr *ehdr, FILE *elf_file);
+void ElfFileDisplayRelocations(ElfFile* elf);
 
-/**
- * @brief Extract all the informations from the section table of a ELF File
- *
- * ! free() is required after using the structure
- *
- * @param elf_file
- * @param e_shoff
- * @param e_shnum
- * @param e_shentsize
- * @param e_ident
- * @return Elf32_Shdr*
- */
-EXTRACT_STATUS extract_section_headers(Elf32_Shdr *sections, FILE *elf_file,
-                                       Elf32_Off e_shoff, Elf32_Half e_shnum,
-                                       unsigned char e_ident[EI_NIDENT]);
-
-/**
- * @brief Display all the informations in the elf structure
- *
- * @pre Elf structure correctly initiate
- * @post Display all informations with traduction if necessary
- *
- * @param elf
- */
-void __display_elf_headers(const Elf32_Ehdr *elf);
-/**
- * @brief Get the shdr by name object
- *
- * @param section_name
- * @param f
- * @returns Pointer to the section header, NULL if it wasn't found
- */
-Elf32_Shdr *get_shdr_by_name(const char *section_name, Elf32_File *f);
-
-/**
- * @brief Returns a pointer to the section header identified by it's index. Returns NULL if not found
- *
- */
-Elf32_Shdr *get_shdr_by_nbr(uint32_t section_number, Elf32_File *f);
-
-EXTRACT_STATUS extract_sym(Elf32_Sym *sym, unsigned char e_ident[EI_NIDENT],
-                           Elf32_Shdr *sections, Elf32_Half e_shnum,
-                           FILE *elf_file);
-
-void display_sym_tab(Elf32_File *f);
-
-/**
- * @brief Get the section by type object
- *
- * !Return a Elf32_shdr with all is attribute with 0 if no one sections match
- * with the type
- *
- * @param flag
- * @param sections
- * @param e_shnum
- * @param elf_file
- * @return Elf32_Shdr
- */
-Elf32_Shdr get_section_by_type(Elf32_Word flag, Elf32_Shdr *sections,
-                               Elf32_Half e_shnum, FILE *elf_file);
-
-void free_ehdr(Elf32_Ehdr *ehdr);
-Elf32_Ehdr *initialize_ehdr(void);
-
-Elf32_Shdr *initialize_shdr(Elf32_Half e_shentsize, Elf32_Half e_shnum);
-void free_shdr(Elf32_Shdr *shdr);
-
-Elf32_Sym *initialize_sym(Elf32_Shdr *shdr, Elf32_Half e_shnum, FILE *elf_file);
-void free_sym(Elf32_Sym *sym);
-#endif //_ELF_OPS_H
+#endif  //_ELF_OPS_H
