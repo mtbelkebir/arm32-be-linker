@@ -113,6 +113,16 @@ typedef enum ElfParsingStatus {
 ElfParsingStatus ElfFileNew(const char* path, ElfFile** out);
 
 /**
+ * @brief Creates an en Empty ElfFile whose values are all NULL.
+ *
+ * @param out Pointer to receive the newly allocated ElfFile on success.
+ * @return Success on success, or MemoryError in case of a failed alloc.
+ *
+ * On success, the caller owns the returned ElfFile and must call
+ * ElfFileDestroy() to free it.
+ */
+ElfParsingStatus ElfFileNewEmpty(ElfFile** out);
+/**
  * @brief Displays the ELF header to stdout.
  *
  * @param elf The ELF file whose header should be displayed.
