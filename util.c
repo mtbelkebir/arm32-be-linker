@@ -21,9 +21,10 @@ Contact: Guillaume.Huard@imag.fr
          38330 Montbonnot Saint-Martin
 */
 #include "util.h"
+
 #include <stdint.h>
 
-int is_big_endian() {
+int is_host_big_endian() {
   static uint32_t one = 1;
   return ((*(uint8_t *)&one) == 0);
 }

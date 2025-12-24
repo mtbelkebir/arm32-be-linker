@@ -107,7 +107,7 @@ static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
   memcpy(&file->header, header_buffer, sizeof(Elf32_Ehdr));
 
   // Reverse endianness of all values in host is little endian
-  if (!is_big_endian()) {
+  if (!is_host_big_endian()) {
     file->header.e_type = byte_swap(file->header.e_type);
     file->header.e_machine = byte_swap(file->header.e_machine);
     file->header.e_version = byte_swap(file->header.e_version);
@@ -145,7 +145,7 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
     if (fread(&shdr, sizeof(Elf32_Shdr), 1, file->file_stream) != 1) {
       return FileTooShort;
     }
-    if (!is_big_endian()) {
+    if (!is_host_big_endian()) {
       shdr.sh_name = byte_swap(shdr.sh_name);
       shdr.sh_type = byte_swap(shdr.sh_type);
       shdr.sh_flags = byte_swap(shdr.sh_flags);
@@ -235,7 +235,7 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
     if (fread(&sym, sizeof(Elf32_Sym), 1, file->file_stream) != 1) {
       return FileTooShort;
     }
-    if (!is_big_endian()) {
+    if (!is_host_big_endian()) {
       sym.st_name = byte_swap(sym.st_name);
       sym.st_value = byte_swap(sym.st_value);
       sym.st_size = byte_swap(sym.st_size);
@@ -341,7 +341,7 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
         return IoError;
       }
 
-      if (!is_big_endian()) {
+      if (!is_host_big_endian()) {
         entries[j].rel.r_offset = byte_swap(entries[j].rel.r_offset);
         entries[j].rel.r_info = byte_swap(entries[j].rel.r_info);
       }

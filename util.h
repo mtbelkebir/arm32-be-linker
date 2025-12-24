@@ -26,7 +26,7 @@ Contact: Guillaume.Huard@imag.fr
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-int is_big_endian();
+int is_host_big_endian();
 /*
 #define reverse_2(x) ((((x)&0xFF)<<8)|(((x)>>8)&0xFF))
 #define reverse_4(x) ((((x)&0xFF)<<24)|((((x)>>8)&0xFF)<<16)|\
