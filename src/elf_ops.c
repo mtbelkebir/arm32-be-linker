@@ -23,16 +23,10 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
     return IoError;
   }
 
-  ElfFile* new_file = (ElfFile*)malloc(sizeof(ElfFile));
-  if (!new_file) {
-    fclose(f);
+  ElfFile* new_file = NULL;
+  if (ElfFileNewEmpty(&new_file) != Success) {
     return MemoryError;
   }
-
-  // Initialize members
-  new_file->file_stream = f;
-  new_file->sections = NULL;
-  new_file->symbols_table = NULL;
 
   ElfParsingStatus status = _ParseElfHeader(new_file);
   if (status != Success) {
@@ -60,6 +54,29 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
     return status;
   }
   *out = new_file;
+  return Success;
+}
+
+ElfParsingStatus ElfFileNewEmpty(ElfFile** out) {
+  if (!out) return InvalidArguments;
+  ElfFile* new = malloc(sizeof(ElfFile));
+  if (new == NULL) {
+    return MemoryError;
+  }
+  new->file_stream = NULL;
+  new->rel_tables = NULL;
+  new->rel_tables_count = 0;
+  new->header = (Elf32_Ehdr){
+      .e_ehsize = 0,
+      .e_flags = 0,
+      .e_ident = {0},
+      .e_entry = 0,
+      .e_machine = 0,
+      .e_version = 0,
+      .e_phoff = 0,
+      .e_shoff = 0,
+  };
+  *out = new;
   return Success;
 }
 
