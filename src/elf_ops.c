@@ -30,7 +30,7 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
   }
 
   // Initialize members
-  new_file->file = f;
+  new_file->file_stream = f;
   new_file->sections = NULL;
   new_file->symbols_table = NULL;
 
@@ -67,9 +67,9 @@ static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
   if (!file) return InvalidArguments;
   uint8_t header_buffer[sizeof(Elf32_Ehdr)] = {0};
 
-  rewind(file->file);
+  rewind(file->file_stream);
   // File too short to anything anyway
-  if (fread(header_buffer, 1, sizeof(Elf32_Ehdr), file->file) <
+  if (fread(header_buffer, 1, sizeof(Elf32_Ehdr), file->file_stream) <
       sizeof(Elf32_Ehdr)) {
     return FileTooShort;
   }
@@ -107,7 +107,7 @@ static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
   memcpy(&file->header, header_buffer, sizeof(Elf32_Ehdr));
 
   // Reverse endianness of all values in host is little endian
-  if (!is_big_endian()) {
+  if (!is_host_big_endian()) {
     file->header.e_type = byte_swap(file->header.e_type);
     file->header.e_machine = byte_swap(file->header.e_machine);
     file->header.e_version = byte_swap(file->header.e_version);
@@ -127,7 +127,7 @@ static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
 static ElfParsingStatus _ParseElfSections(ElfFile* file) {
   if (!file || file->header.e_shnum == 0) return Success;
 
-  if (fseek(file->file, file->header.e_shoff, SEEK_SET) != 0) {
+  if (fseek(file->file_stream, file->header.e_shoff, SEEK_SET) != 0) {
     return IoError;
   }
 
@@ -142,10 +142,10 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
 
   for (uint16_t i = 0; i < file->header.e_shnum; i++) {
     Elf32_Shdr shdr;
-    if (fread(&shdr, sizeof(Elf32_Shdr), 1, file->file) != 1) {
+    if (fread(&shdr, sizeof(Elf32_Shdr), 1, file->file_stream) != 1) {
       return FileTooShort;
     }
-    if (!is_big_endian()) {
+    if (!is_host_big_endian()) {
       shdr.sh_name = byte_swap(shdr.sh_name);
       shdr.sh_type = byte_swap(shdr.sh_type);
       shdr.sh_flags = byte_swap(shdr.sh_flags);
@@ -179,12 +179,12 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
     return MemoryError;
   }
 
-  if (fseek(file->file, strtab_shdr.sh_offset, SEEK_SET) != 0) {
+  if (fseek(file->file_stream, strtab_shdr.sh_offset, SEEK_SET) != 0) {
     free(string_table);
     return IoError;
   }
 
-  if (fread(string_table, strtab_shdr.sh_size, 1, file->file) != 1) {
+  if (fread(string_table, strtab_shdr.sh_size, 1, file->file_stream) != 1) {
     free(string_table);
     return IoError;
   }
@@ -226,16 +226,16 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
     return MemoryError;
   }
 
-  if (fseek(file->file, sym_sec->header.sh_offset, SEEK_SET) != 0) {
+  if (fseek(file->file_stream, sym_sec->header.sh_offset, SEEK_SET) != 0) {
     return IoError;
   }
 
   for (uint32_t i = 0; i < count; i++) {
     Elf32_Sym sym;
-    if (fread(&sym, sizeof(Elf32_Sym), 1, file->file) != 1) {
+    if (fread(&sym, sizeof(Elf32_Sym), 1, file->file_stream) != 1) {
       return FileTooShort;
     }
-    if (!is_big_endian()) {
+    if (!is_host_big_endian()) {
       sym.st_name = byte_swap(sym.st_name);
       sym.st_value = byte_swap(sym.st_value);
       sym.st_size = byte_swap(sym.st_size);
@@ -261,12 +261,12 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
     return MemoryError;
   }
 
-  if (fseek(file->file, strtab_shdr.sh_offset, SEEK_SET) != 0) {
+  if (fseek(file->file_stream, strtab_shdr.sh_offset, SEEK_SET) != 0) {
     free(string_table);
     return IoError;
   }
 
-  if (fread(string_table, strtab_shdr.sh_size, 1, file->file) != 1) {
+  if (fread(string_table, strtab_shdr.sh_size, 1, file->file_stream) != 1) {
     free(string_table);
     return IoError;
   }
@@ -326,20 +326,22 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
     reloc_table[i].count = entry_count;
     reloc_table[i].entries = entries;
 
-    if (fseek(file->file, rel_sections[i]->header.sh_offset, SEEK_SET) != 0) {
+    if (fseek(file->file_stream, rel_sections[i]->header.sh_offset, SEEK_SET) !=
+        0) {
       _ElfFreeRelocationTables(file);
       free(rel_sections);
       return IoError;
     }
 
     for (uint32_t j = 0; j < entry_count; j++) {
-      if (fread(&entries[j].rel, sizeof(Elf32_Rel), 1, file->file) != 1) {
+      if (fread(&entries[j].rel, sizeof(Elf32_Rel), 1, file->file_stream) !=
+          1) {
         _ElfFreeRelocationTables(file);
         free(rel_sections);
         return IoError;
       }
 
-      if (!is_big_endian()) {
+      if (!is_host_big_endian()) {
         entries[j].rel.r_offset = byte_swap(entries[j].rel.r_offset);
         entries[j].rel.r_info = byte_swap(entries[j].rel.r_info);
       }
@@ -427,7 +429,7 @@ void ElfFileDisplaySymbols(ElfFile* elf) {
 
 void ElfFileDestroy(ElfFile* elf) {
   if (!elf) return;
-  if (elf->file) fclose(elf->file);
+  if (elf->file_stream) fclose(elf->file_stream);
   ElfFreeSectionTable(elf);
   _ElfFreeSymbolsTable(elf);
   _ElfFreeRelocationTables(elf);
@@ -756,7 +758,7 @@ int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf) {
     return 1;
   }
 
-  if (fseek(elf->file, section->header.sh_offset, SEEK_SET) != 0) {
+  if (fseek(elf->file_stream, section->header.sh_offset, SEEK_SET) != 0) {
     return 0;
   }
   uint8_t* section_contents = malloc(section->header.sh_size);
@@ -765,7 +767,8 @@ int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf) {
     return -1;
   }
 
-  if (fread(section_contents, section->header.sh_size, 1, elf->file) != 1) {
+  if (fread(section_contents, section->header.sh_size, 1, elf->file_stream) !=
+      1) {
     free(section_contents);
     return 0;
   }

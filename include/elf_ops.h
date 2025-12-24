@@ -67,7 +67,7 @@ typedef struct ElfRelocationTable {
  * ElfFileDestroy().
  */
 typedef struct ElfFile {
-  FILE* file;        /**< Open FILE* for the underlying file (may be NULL). */
+  FILE* file_stream; /**< Open FILE* for the underlying file (may be NULL). */
   Elf32_Ehdr header; /**< Parsed ELF header (host endianness). */
   ElfSection* sections;           /**< Heap-allocated array of sections. */
   ElfSymbolsTable* symbols_table; /**< Parsed symbol table (may be NULL). */
