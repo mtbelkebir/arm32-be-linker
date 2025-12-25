@@ -27,25 +27,22 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
   if (ElfFileNewEmpty(&new_file) != Success) {
     return MemoryError;
   }
-
+  new_file->file_stream = f;
   ElfParsingStatus status = _ParseElfHeader(new_file);
   if (status != Success) {
-    fclose(f);
-    free(new_file);
+    ElfFileDestroy(new_file);
     return status;
   }
 
   status = _ParseElfSections(new_file);
   if (status != Success) {
-    fclose(f);
-    free(new_file);
+    ElfFileDestroy(new_file);
     return status;
   }
 
   status = _ParseElfSymbols(new_file);
   if (status != Success) {
-    fclose(f);
-    free(new_file);
+    ElfFileDestroy(new_file);
     return status;
   }
   status = _ParseElfRelocations(new_file);
@@ -139,6 +136,11 @@ static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
     file->header.e_shnum = byte_swap(file->header.e_shnum);
     file->header.e_shstrndx = byte_swap(file->header.e_shstrndx);
   }
+
+  // Header size is corrupted and the rest of the file cannot be trusted.
+  if (file->header.e_ehsize != sizeof(Elf32_Ehdr)) {
+    return NotAnElfFile;
+  }
   return Success;
 }
 static ElfParsingStatus _ParseElfSections(ElfFile* file) {
@@ -147,9 +149,8 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
   if (fseek(file->file_stream, file->header.e_shoff, SEEK_SET) != 0) {
     return IoError;
   }
-
   size_t section_table_size = file->header.e_shnum * sizeof(ElfSection);
-  file->sections = malloc(section_table_size);
+  file->sections = calloc(file->header.e_shnum, sizeof(ElfSection));
 
   if (!file->sections) {
     return MemoryError;
@@ -176,45 +177,45 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
     }
     file->sections[i].header = shdr;
   }
-  // All sections are properly parsed but their names are inexistant or
+  // Copy the raw data of the section into memory
+
+  for (int i = 0; i < file->header.e_shnum; i++) {
+    ElfSection* section = &file->sections[i];
+    // This section doesn't hold any data.
+    if (section->header.sh_type == SHT_NOBITS) {
+      continue;
+    }
+    if (fseek(file->file_stream, section->header.sh_offset, SEEK_SET) != 0) {
+      return IoError;
+    }
+    section->data = malloc(section->header.sh_size);
+    if (!section->data) {
+      return IoError;
+    }
+    if (fread(section->data, 1, section->header.sh_size, file->file_stream) !=
+        section->header.sh_size) {
+      return IoError;
+    }
+  }
+
+  // All sections are properly parsed, but their names are inexistant or
   // inaccessible. We can stop here.
   if (file->header.e_shstrndx == SHN_UNDEF ||
       file->header.e_shstrndx >= file->header.e_shnum) {
     return Success;
   }
-
-  Elf32_Shdr strtab_shdr = file->sections[file->header.e_shstrndx].header;
-  /* What's coming is going to be some pretty dark magic.
-   * Indeed, since we can't know in advance the size of a section's name, and we
-   * don't want to keep using `fgetc` and realloc (that's kind of slow and heavy
-   * on the drive), we'll just load the entire string table at once, and from it
-   * use `strdup` to get the full name safely.
-   */
-
-  char* string_table = malloc(strtab_shdr.sh_size);
-  if (!string_table) {
-    return MemoryError;
-  }
-
-  if (fseek(file->file_stream, strtab_shdr.sh_offset, SEEK_SET) != 0) {
-    free(string_table);
-    return IoError;
-  }
-
-  if (fread(string_table, strtab_shdr.sh_size, 1, file->file_stream) != 1) {
-    free(string_table);
-    return IoError;
-  }
+  // Retrieval of all section names.
+  ElfSection* strtab = &file->sections[file->header.e_shstrndx];
+  char* string_table = (char*)strtab->data;
 
   for (uint16_t i = 0; i < file->header.e_shnum; i++) {
     uint32_t name_offset = file->sections[i].header.sh_name;
-    if (name_offset < strtab_shdr.sh_size) {
+    if (name_offset < strtab->header.sh_size) {
       file->sections[i].name = strdup(string_table + name_offset);
     } else {
       file->sections[i].name = strdup("<corrupt>");
     }
   }
-  free(string_table);
   return Success;
 }
 static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
@@ -231,6 +232,10 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
   // If no symbol table is present, we can just stop here.
   if (!sym_sec) return Success;
 
+  // Prevents a crash should the elf file be corrupted.
+  if (sym_sec->header.sh_entsize == 0) {
+    return UnknownError;
+  }
   file->symbols_table = malloc(sizeof(ElfSymbolsTable));
   if (!file->symbols_table) return MemoryError;
 
@@ -238,8 +243,6 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
   file->symbols_table->count = count;
   file->symbols_table->symbols = calloc(count, sizeof(ElfSymbol));
   if (!file->symbols_table->symbols) {
-    free(file->symbols_table);
-    file->symbols_table = NULL;
     return MemoryError;
   }
 
@@ -268,36 +271,17 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
     return Success;
   }
 
-  Elf32_Shdr strtab_shdr = file->sections[sym_sec->header.sh_link].header;
-  /* Once again, the dark magic of loading the entire string table.
-   * We do this to avoid seeking for every single symbol name, which would be
-   * extremely slow for large symbol tables.
-   */
-  char* string_table = malloc(strtab_shdr.sh_size);
-  if (!string_table) {
-    return MemoryError;
-  }
-
-  if (fseek(file->file_stream, strtab_shdr.sh_offset, SEEK_SET) != 0) {
-    free(string_table);
-    return IoError;
-  }
-
-  if (fread(string_table, strtab_shdr.sh_size, 1, file->file_stream) != 1) {
-    free(string_table);
-    return IoError;
-  }
-
+  ElfSection* strtab = &file->sections[sym_sec->header.sh_link];
+  char* string_table = (char*)strtab->data;
   for (uint32_t i = 0; i < file->symbols_table->count; i++) {
     uint32_t name_offset = file->symbols_table->symbols[i].sym.st_name;
-    if (name_offset < strtab_shdr.sh_size) {
+    if (name_offset < strtab->header.sh_size) {
       file->symbols_table->symbols[i].name = strdup(string_table + name_offset);
     } else {
       file->symbols_table->symbols[i].name = strdup("<corrupt>");
     }
   }
 
-  free(string_table);
   return Success;
 }
 static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
@@ -335,7 +319,6 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
     ElfRelocationEntry* entries =
         calloc(entry_count, sizeof(ElfRelocationEntry));
     if (!entries) {
-      _ElfFreeRelocationTables(file);
       free(rel_sections);
       return MemoryError;
     }
@@ -345,7 +328,6 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
 
     if (fseek(file->file_stream, rel_sections[i]->header.sh_offset, SEEK_SET) !=
         0) {
-      _ElfFreeRelocationTables(file);
       free(rel_sections);
       return IoError;
     }
@@ -353,7 +335,6 @@ static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
     for (uint32_t j = 0; j < entry_count; j++) {
       if (fread(&entries[j].rel, sizeof(Elf32_Rel), 1, file->file_stream) !=
           1) {
-        _ElfFreeRelocationTables(file);
         free(rel_sections);
         return IoError;
       }
@@ -457,9 +438,15 @@ static void ElfFreeSectionTable(ElfFile* elf) {
   for (int i = 0; i < elf->header.e_shnum; i++) {
     if (elf->sections[i].name) {
       free(elf->sections[i].name);
+      elf->sections[i].name = NULL;
     }
+    if (elf->sections[i].data) {
+      free(elf->sections[i].data);
+    }
+    elf->sections[i].data = NULL;
   }
   free(elf->sections);
+  elf->sections = NULL;
 }
 static void _ElfFreeRelocationTables(ElfFile* elf) {
   if (!elf || !elf->rel_tables) return;
@@ -778,24 +765,13 @@ int ElfFileDisplaySectionContentsByName(const char* name, ElfFile* elf) {
   if (fseek(elf->file_stream, section->header.sh_offset, SEEK_SET) != 0) {
     return 0;
   }
-  uint8_t* section_contents = malloc(section->header.sh_size);
-
-  if (!section_contents) {
-    return -1;
-  }
-
-  if (fread(section_contents, section->header.sh_size, 1, elf->file_stream) !=
-      1) {
-    free(section_contents);
-    return 0;
-  }
+  uint8_t* section_contents = section->data;
 
   // We're printing the raw contents of the section,
   // so there's no need to manage endianness.
   for (int i = 0; i < section->header.sh_size; i++) {
     printf("%02x%c", section_contents[i], ((i + 1) % 16 == 0) ? '\n' : ' ');
   }
-  free(section_contents);
   return 1;
 }
 

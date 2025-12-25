@@ -12,6 +12,8 @@
 typedef struct ElfSection {
   char* name;        /**< Section name (heap-allocated, may be "<corrupt>"). */
   Elf32_Shdr header; /**< Standard ELF32 section header. */
+  uint8_t* data;     /**< Raw contents of the section (heap-allocated, NULL for
+                        .bss) */
 } ElfSection;
 
 /**
@@ -183,7 +185,8 @@ void ElfFileDisplaySymbols(ElfFile* elf);
 /**
  * @brief Retrieves all sections of a specific type.
  *
- * @param out_section_count Pointer to receive the number of matching sections.
+ * @param out_section_count Pointer to receive the number of matching
+ * sections.
  * @param type The section type (e.g., SHT_PROGBITS, SHT_REL).
  * @param elf The ELF file to search.
  * @return Heap-allocated array of pointers to matching sections, or NULL.
