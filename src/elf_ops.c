@@ -122,19 +122,7 @@ static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
 
   // Reverse endianness of all values in host is little endian
   if (!is_host_big_endian()) {
-    file->header.e_type = byte_swap(file->header.e_type);
-    file->header.e_machine = byte_swap(file->header.e_machine);
-    file->header.e_version = byte_swap(file->header.e_version);
-    file->header.e_entry = byte_swap(file->header.e_entry);
-    file->header.e_phoff = byte_swap(file->header.e_phoff);
-    file->header.e_shoff = byte_swap(file->header.e_shoff);
-    file->header.e_flags = byte_swap(file->header.e_flags);
-    file->header.e_ehsize = byte_swap(file->header.e_ehsize);
-    file->header.e_phentsize = byte_swap(file->header.e_phentsize);
-    file->header.e_phnum = byte_swap(file->header.e_phnum);
-    file->header.e_shentsize = byte_swap(file->header.e_shentsize);
-    file->header.e_shnum = byte_swap(file->header.e_shnum);
-    file->header.e_shstrndx = byte_swap(file->header.e_shstrndx);
+    file->header = byte_swap(file->header);
   }
 
   // Header size is corrupted and the rest of the file cannot be trusted.
@@ -164,16 +152,7 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
       return FileTooShort;
     }
     if (!is_host_big_endian()) {
-      shdr.sh_name = byte_swap(shdr.sh_name);
-      shdr.sh_type = byte_swap(shdr.sh_type);
-      shdr.sh_flags = byte_swap(shdr.sh_flags);
-      shdr.sh_addr = byte_swap(shdr.sh_addr);
-      shdr.sh_offset = byte_swap(shdr.sh_offset);
-      shdr.sh_size = byte_swap(shdr.sh_size);
-      shdr.sh_link = byte_swap(shdr.sh_link);
-      shdr.sh_info = byte_swap(shdr.sh_info);
-      shdr.sh_addralign = byte_swap(shdr.sh_addralign);
-      shdr.sh_entsize = byte_swap(shdr.sh_entsize);
+      shdr = byte_swap(shdr);
     }
     file->sections[i].header = shdr;
   }

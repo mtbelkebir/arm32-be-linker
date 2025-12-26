@@ -26,5 +26,36 @@ Contact: Guillaume.Huard@imag.fr
 
 int is_host_big_endian() {
   static uint32_t one = 1;
-  return ((*(uint8_t *)&one) == 0);
+  return ((*(uint8_t*)&one) == 0);
+}
+
+Elf32_Ehdr _SwapElf32_Ehdr(Elf32_Ehdr h) {
+  h.e_type = byte_swap(h.e_type);
+  h.e_machine = byte_swap(h.e_machine);
+  h.e_version = byte_swap(h.e_version);
+  h.e_entry = byte_swap(h.e_entry);
+  h.e_phoff = byte_swap(h.e_phoff);
+  h.e_shoff = byte_swap(h.e_shoff);
+  h.e_flags = byte_swap(h.e_flags);
+  h.e_ehsize = byte_swap(h.e_ehsize);
+  h.e_phentsize = byte_swap(h.e_phentsize);
+  h.e_phnum = byte_swap(h.e_phnum);
+  h.e_shentsize = byte_swap(h.e_shentsize);
+  h.e_shnum = byte_swap(h.e_shnum);
+  h.e_shstrndx = byte_swap(h.e_shstrndx);
+  return h;
+}
+
+Elf32_Shdr _SwapElf32_Shdr(Elf32_Shdr s) {
+  s.sh_name = byte_swap(s.sh_name);
+  s.sh_type = byte_swap(s.sh_type);
+  s.sh_flags = byte_swap(s.sh_flags);
+  s.sh_addr = byte_swap(s.sh_addr);
+  s.sh_offset = byte_swap(s.sh_offset);
+  s.sh_size = byte_swap(s.sh_size);
+  s.sh_link = byte_swap(s.sh_link);
+  s.sh_info = byte_swap(s.sh_info);
+  s.sh_addralign = byte_swap(s.sh_addralign);
+  s.sh_entsize = byte_swap(s.sh_entsize);
+  return s;
 }
