@@ -203,4 +203,20 @@ ElfSection** ElfFileGetSectionsByType(uint32_t* out_section_count,
  */
 void ElfFileDisplayRelocations(ElfFile* elf);
 
+/**
+ * @brief Serialises an ElfFile back into a physical file on disk.
+ * * Reconstructs an ELF File linearly in one pass. The resulting file may have
+ * a different layout from the original input since sections are treated
+ * sequentially based on their index in the section table.
+ *
+ * @note Side effects:
+ * - The SHT_NULL section (index 0) will be assigned an offset equal to
+ * sizeof(Elf32_Ehdr) despite it having a size of 0.
+ * - The result is compacted and aligned strictly according to sh_addralign
+ * values.
+ * @param path The destination file path.
+ * @param f    Pointer to the ElfFile structure to be written.
+ * @return     ElfParsingStatus: Success, or IoError if writing fails.
+ */
+ElfParsingStatus ElfFileWriteToDisk(const char* path, ElfFile* f);
 #endif  //_ELF_OPS_H
