@@ -813,3 +813,90 @@ void ElfFileDisplayRelocations(ElfFile* elf) {
     }
   }
 }
+
+ElfParsingStatus ElfFileWriteToDisk(const char* path, ElfFile* f) {
+  if (!path || !f) {
+    return InvalidArguments;
+  }
+
+  FILE* file = fopen(path, "wb");
+  if (!file) {
+    return IoError;
+  }
+
+  const char zero = 0;
+
+  /* * Regrettably, software design is also about sacrifices.
+   * * Two options are available from here.
+   * - In-place endianness swapping, which would ruin the Elf File struct.
+   * - Copying the ElfFile struct, which would consume way too much memory.
+   * * Instead, the compromise is to copy the headers, byte swap them and write
+   * them to disk. It makes the code less readable, but that's better than the
+   * aforementioned options.
+   */
+
+  // Writing of file header.
+  Elf32_Ehdr ehdr = f->header;  // We keep this in Host format for calculations
+  size_t current_offset = 0;
+
+  // Writing back to big endian (for the first write)
+  Elf32_Ehdr header_to_disk = is_host_big_endian() ? ehdr : byte_swap(ehdr);
+
+  if ((current_offset += fwrite(&header_to_disk, 1, sizeof(Elf32_Ehdr), file)) <
+      sizeof(Elf32_Ehdr)) {
+    fclose(file);
+    return IoError;
+  }
+
+  // Writing of section contents
+  for (int i = 0; i < f->header.e_shnum; i++) {
+    const uint32_t alignment = f->sections[i].header.sh_addralign;
+    size_t required_padding =
+        (alignment > 1) ? (alignment - (current_offset % alignment)) % alignment
+                        : 0;
+
+    // Apply padding
+    if (required_padding > 0) {
+      fwrite(&zero, 1, required_padding, file);
+      current_offset += required_padding;
+    }
+
+    // New data offset in the file.
+    f->sections[i].header.sh_offset = (uint32_t)current_offset;
+
+    current_offset +=
+        fwrite(f->sections[i].data, 1, f->sections[i].header.sh_size, file);
+  }
+
+  // Writing of section headers.
+  // Align the section header table to 4 bytes
+  const char section_header_table_alignment = 4;
+  const uint32_t section_header_required_padding =
+      (section_header_table_alignment -
+       current_offset % section_header_table_alignment) %
+      section_header_table_alignment;
+
+  if (section_header_required_padding > 0) {
+    fwrite(&zero, 1, section_header_required_padding, file);
+    current_offset += section_header_required_padding;
+  }
+
+  // We have to update this (Host format first)
+  ehdr.e_shoff = (uint32_t)current_offset;
+
+  for (int i = 0; i < f->header.e_shnum; i++) {
+    Elf32_Shdr shdr = f->sections[i].header;
+    if (!is_host_big_endian()) {
+      shdr = byte_swap(shdr);
+    }
+    fwrite(&shdr, 1, sizeof(Elf32_Shdr), file);
+  }
+
+  // Since we update e_shnum, we have to go back and patch it.
+  rewind(file);
+  header_to_disk = is_host_big_endian() ? ehdr : byte_swap(ehdr);
+  fwrite(&header_to_disk, 1, sizeof(Elf32_Ehdr), file);
+
+  fclose(file);
+  return Success;
+}
