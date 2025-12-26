@@ -39,7 +39,25 @@ inline uint32_t reverse_4(uint32_t x) {
   return ((((x) & 0xFF) << 24) | ((((x) >> 8) & 0xFF) << 16) |
           ((((x) >> 16) & 0xFF) << 8) | (((x) >> 24) & 0xFF));
 }
-#define byte_swap(x) _Generic((x), uint16_t: reverse_2, uint32_t: reverse_4)(x)
+/**
+ * Swaps the endianness of all fields of s. Should never be used directly
+ * @see byte_swap
+ */
+Elf32_Shdr _SwapElf32_Shdr(Elf32_Shdr s);
+/**
+ * Swaps the endianness of all fields of h. Should never be used directly
+ * @see byte_swap
+ */
+Elf32_Ehdr _SwapElf32_Ehdr(Elf32_Ehdr h);
+
+#define byte_swap(x)               \
+  _Generic((x),                    \
+      uint16_t: reverse_2,         \
+      uint32_t: reverse_4,         \
+      int16_t: reverse_2,          \
+      int32_t: reverse_4,          \
+      Elf32_Shdr: _SwapElf32_Shdr, \
+      Elf32_Ehdr: _SwapElf32_Ehdr)(x)
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
 #endif
