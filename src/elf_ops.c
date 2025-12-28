@@ -54,27 +54,25 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
   return Success;
 }
 
-ElfParsingStatus ElfFileNewEmpty(ElfFile** out) {
-  if (!out) return InvalidArguments;
+ElfFile* ElfFileNewEmpty() {
   ElfFile* new = malloc(sizeof(ElfFile));
   if (new == NULL) {
-    return MemoryError;
+    return NULL;
   }
   new->file_stream = NULL;
   new->rel_tables = NULL;
   new->rel_tables_count = 0;
   new->header = (Elf32_Ehdr){
-      .e_ehsize = 0,
+      .e_ehsize = sizeof(Elf32_Ehdr),
       .e_flags = 0,
-      .e_ident = {0},
+      .e_ident = {0x7f, 'E', 'L', 'F', ELFCLASS32, ELFDATA2MSB, EV_CURRENT, 0},
       .e_entry = 0,
-      .e_machine = 0,
-      .e_version = 0,
+      .e_machine = EM_ARM,
+      .e_version = EV_CURRENT,
       .e_phoff = 0,
       .e_shoff = 0,
-  };
-  *out = new;
-  return Success;
+      .e_type = ET_REL};
+  return new;
 }
 
 static ElfParsingStatus _ParseElfHeader(ElfFile* file) {
