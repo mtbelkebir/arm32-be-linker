@@ -1,5 +1,5 @@
 #include <stdio.h>
 
 void afficher() {
-	printf("Hello world\n");
+  printf("Hello world\n");
 }
