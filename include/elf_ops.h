@@ -115,15 +115,14 @@ typedef enum ElfParsingStatus {
 ElfParsingStatus ElfFileNew(const char* path, ElfFile** out);
 
 /**
- * @brief Creates an en Empty ElfFile whose values are all NULL.
+ * @brief Creates a minimal relocatable ElfFile.
  *
- * @param out Pointer to receive the newly allocated ElfFile on success.
- * @return Success on success, or MemoryError in case of a failed alloc.
+ * @return Heap-Allocated minimal ElfFile on Success, NULL on false
  *
  * On success, the caller owns the returned ElfFile and must call
  * ElfFileDestroy() to free it.
  */
-ElfParsingStatus ElfFileNewEmpty(ElfFile** out);
+ElfFile* ElfFileNewEmpty();
 /**
  * @brief Displays the ELF header to stdout.
  *
