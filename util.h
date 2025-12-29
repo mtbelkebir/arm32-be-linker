@@ -39,6 +39,14 @@ inline uint32_t reverse_4(uint32_t x) {
   return ((((x) & 0xFF) << 24) | ((((x) >> 8) & 0xFF) << 16) |
           ((((x) >> 16) & 0xFF) << 8) | (((x) >> 24) & 0xFF));
 }
+
+/**
+ * @brief Aligns addr with the next value that is multiple of align.
+ */
+inline uint32_t align_up(uint32_t addr, uint32_t align) {
+  if (align <= 1) return addr;
+  return (addr + align - 1) & ~(align - 1);
+}
 /**
  * Swaps the endianness of all fields of s. Should never be used directly
  * @see byte_swap
