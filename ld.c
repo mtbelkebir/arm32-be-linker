@@ -52,8 +52,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  ElfFile *result = NULL;
-  MergeFiles(&result, f1, f2);
+  ElfFile *result = ElfMergeSections(f1, f2);
 
   if (result) {
     if (ElfFileWriteToDisk(output_path, result) != Success) {
