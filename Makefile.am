@@ -9,13 +9,15 @@ AM_CPPFLAGS = -I$(srcdir)/include -I$(srcdir) -I$(UNITY_DIR)
 # --- Internal Static Library ---
 noinst_LIBRARIES = libelflinker.a
 libelflinker_a_SOURCES = \
-    debug.c util.c src/elf_ops.c
+    debug.c util.c src/ElfFile.c src/Linker.c
 
 # --- Main Application ---
-bin_PROGRAMS = main
-main_SOURCES = main.c
-main_LDADD = libelflinker.a
+bin_PROGRAMS = readelf ld
+readelf_SOURCES = readelf.c
+readelf_LDADD = libelflinker.a
 
+ld_SOURCES_ = ld.c
+ld_LDADD = libelflinker.a
 # --- Unit Tests (Pure Unity) ---
 check_PROGRAMS = test_extract_elf_headers
 TESTS = $(check_PROGRAMS)

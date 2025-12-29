@@ -23,6 +23,8 @@ Contact: Guillaume.Huard@imag.fr
 #include "util.h"
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 int is_host_big_endian() {
   static uint32_t one = 1;
@@ -58,4 +60,41 @@ Elf32_Shdr _SwapElf32_Shdr(Elf32_Shdr s) {
   s.sh_addralign = byte_swap(s.sh_addralign);
   s.sh_entsize = byte_swap(s.sh_entsize);
   return s;
+}
+
+StringBuilder StringBuilderNew() {
+  return (StringBuilder){
+      .data = calloc(1, sizeof(char)),
+      .size = 1,
+      .capacity = 1,
+  };
+}
+
+uint32_t StringBuilderAppend(StringBuilder* builder, const char* str) {
+  if (!str || *str == '\0') return 0;
+  size_t len = strlen(str) + 1;  // +1 for the \0
+  size_t required = builder->size + len;
+
+  if (required > builder->capacity) {
+    // ×1.5
+    size_t new_capacity = required;
+
+    char* next = realloc(builder->data, new_capacity);
+    if (!next) return (uint32_t)-1;
+
+    builder->data = next;
+    builder->capacity = new_capacity;
+  }
+
+  uint32_t offset = (uint32_t)builder->size;
+  memcpy(builder->data + offset, str, len);
+  builder->size += len;
+
+  return offset;
+}
+
+void StringBuilderDestroy(StringBuilder* builder) {
+  if (builder->data) {
+    free(builder->data);
+  }
 }

@@ -1,42 +1,28 @@
-/*
-ELF Loader - chargeur/implanteur d'exécutables au format ELF à but pédagogique
-Copyright (C) 2012 Guillaume Huard
-Ce programme est libre, vous pouvez le redistribuer et/ou le modifier selon les
-termes de la Licence Publique Générale GNU publiée par la Free Software
-Foundation (version 2 ou bien toute autre version ultérieure choisie par vous).
-
-Ce programme est distribué car potentiellement utile, mais SANS AUCUNE
-GARANTIE, ni explicite ni implicite, y compris les garanties de
-commercialisation ou d'adaptation dans un but spécifique. Reportez-vous à la
-Licence Publique Générale GNU pour plus de détails.
-
-Vous devez avoir reçu une copie de la Licence Publique Générale GNU en même
-temps que ce programme ; si ce n'est pas le cas, écrivez à la Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307,
-États-Unis.
-
-Contact: Guillaume.Huard@imag.fr
-         ENSIMAG - Laboratoire LIG
-         51 avenue Jean Kuntzmann
-         38330 Montbonnot Saint-Martin
-*/
 #include <elf.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "ElfFile.h"
 #include "debug.h"
-#include "elf_ops.h"
+
 void usage(char *name) {
-  fprintf(stderr,
-          "Usage:\n"
-          "%s [ --help ] [ --option1 value ] [ --option2 value ] [ --debug "
-          "file ] file\n\n"
-          "Prints values given as option. The --debug flag enables the output "
-          "produced by "
-          "calls to the debug function in the named source file.\n",
-          name);
+  fprintf(
+      stderr,
+      "Usage:\n"
+      "%s [ --help ] [ --copy source dest ] [ --header file ] [ "
+      "--section-table file ]\n"
+      "   [ --hex-dump section file ] [ --symbols file ] [ --relocations file "
+      "] [ --debug file ]\n\n"
+      "Options:\n"
+      "  -c, --copy src dst      Copies an ELF file (Load then Save to disk)\n"
+      "  -H, --header file       Displays ELF header\n"
+      "  -S, --section-table     Displays section table\n"
+      "  -x, --hex-dump sec file Displays hex dump of a section\n"
+      "  -s, --symbols file      Displays symbol table\n"
+      "  -r, --relocations file  Displays relocations\n",
+      name);
 }
 
 int main(int argc, char *argv[]) {
@@ -50,15 +36,45 @@ int main(int argc, char *argv[]) {
                               {"hex-dump", required_argument, NULL, 'x'},
                               {"symbols", required_argument, NULL, 's'},
                               {"relocations", required_argument, NULL, 'r'},
+                              {"copy", required_argument, NULL, 'c'},
                               {"help", no_argument, NULL, 'h'},
                               {NULL, 0, NULL, 0}};
 
-  char *filename_obj = NULL;
+  char *filename_src = NULL;
+  char *filename_dst = NULL;
   char *section_name = NULL;
 
-  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h:r:", longopts, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "d:H:S:x:s:h:r:c:", longopts, NULL)) !=
          -1) {
     switch (opt) {
+      case 'c':  // Option de copie
+        filename_src = optarg;
+        if (optind < argc) {
+          filename_dst = argv[optind++];
+          // 1. Chargement du fichier source
+          status = ElfFileNew(filename_src, &f);
+          if (status != Success) {
+            fprintf(stderr, "Error loading source %s: %s\n", filename_src,
+                    ElfParsingStatusToString(status));
+          } else {
+            // 2. Écriture immédiate vers la destination
+            status = ElfFileWriteToDisk(filename_dst, f);
+            if (status != Success) {
+              fprintf(stderr, "Error writing to %s: %s\n", filename_dst,
+                      ElfParsingStatusToString(status));
+            } else {
+              printf("Successfully copied %s to %s\n", filename_src,
+                     filename_dst);
+            }
+            ElfFileDestroy(f);
+          }
+        } else {
+          fprintf(stderr,
+                  "Option -c requires a source filename AND a destination "
+                  "filename\n");
+        }
+        break;
+
       case 'r':
         status = ElfFileNew(optarg, &f);
         if (status != Success) {
@@ -95,10 +111,10 @@ int main(int argc, char *argv[]) {
       case 'x':
         section_name = optarg;
         if (optind < argc) {
-          filename_obj = argv[optind++];
-          status = ElfFileNew(filename_obj, &f);
+          filename_src = argv[optind++];
+          status = ElfFileNew(filename_src, &f);
           if (status != Success) {
-            fprintf(stderr, "Error parsing file %s: %s\n", filename_obj,
+            fprintf(stderr, "Error parsing file %s: %s\n", filename_src,
                     ElfParsingStatusToString(status));
           } else {
             printf("Hex dump of section '%s':\n", section_name);
