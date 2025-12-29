@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ElfFile.h"
 #include "debug.h"
-#include "elf_ops.h"
 
 void usage(char *name) {
   fprintf(
