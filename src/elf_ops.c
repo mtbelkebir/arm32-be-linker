@@ -71,7 +71,9 @@ ElfFile* ElfFileNewEmpty() {
       .e_version = EV_CURRENT,
       .e_phoff = 0,
       .e_shoff = 0,
-      .e_type = ET_REL};
+      .e_type = ET_REL,
+      .e_shentsize = sizeof(Elf32_Shdr),
+  };
   return new;
 }
 
