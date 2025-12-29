@@ -23,8 +23,8 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
     return IoError;
   }
 
-  ElfFile* new_file = NULL;
-  if (ElfFileNewEmpty(&new_file) != Success) {
+  ElfFile* new_file = ElfFileNewEmpty();
+  if (!new_file) {
     return MemoryError;
   }
   new_file->file_stream = f;
@@ -71,7 +71,9 @@ ElfFile* ElfFileNewEmpty() {
       .e_version = EV_CURRENT,
       .e_phoff = 0,
       .e_shoff = 0,
-      .e_type = ET_REL};
+      .e_type = ET_REL,
+      .e_shentsize = sizeof(Elf32_Shdr),
+  };
   return new;
 }
 
