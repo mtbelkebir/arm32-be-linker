@@ -6,8 +6,6 @@
 #include "uthash.h"
 #include "util.h"
 
-// TODO(Mohand Tahar) : Finish verifying all memory allocs.
-
 /**
  * Defines exactly *how* to merge two sections.
  */
@@ -42,45 +40,19 @@ static void SectionMapUpdateSource(SectionMap* map, const char* name,
                                    ElfSection* source, uint32_t delta);
 static ElfSection CreateMergedSection(SectionMap* entry);
 bool isSingleton(ElfSection* section);
-static LinkerStatus SectionMapAddSection(SectionMap** map, const char* name,
-                                         ElfSection* target);
+static void SectionMapAddSection(SectionMap** map, const char* name,
+                                 ElfSection* target);
 static MergeStrategy GetMergeStrategy(ElfSection* section);
-static LinkerStatus LinkerProcessShstrtab(ElfFile* elf);
-static LinkerStatus ElfMergeSections(ElfFile** out, ElfFile* f1, ElfFile* f2);
 
-LinkerStatus MergeFiles(ElfFile** out, ElfFile* f1, ElfFile* f2) {
-  ElfFile* result = NULL;
-  LinkerStatus status = ElfMergeSections(&result, f1, f2);
-  if (status != LinkerSuccess) {
-    goto MergeFilesFail;
-  }
-  status = LinkerProcessShstrtab(result);
-  if (status != LinkerSuccess) {
-    goto MergeFilesFail;
-  }
-  *out = result;
-  return status;
-
-MergeFilesFail:
-  *out = NULL;
-  if (result) ElfFileDestroy(result);
-  return status;
-}
-
-LinkerStatus ElfMergeSections(ElfFile** out, ElfFile* f1, ElfFile* f2) {
+ElfFile* ElfMergeSections(ElfFile* f1, ElfFile* f2) {
   SectionMap* mapping = NULL;
   ElfSection *f1_sec = f1->sections, *f2_sec = f2->sections;
   uint32_t f1_sec_count = f1->header.e_shnum, f2_sec_count = f2->header.e_shnum;
-  LinkerStatus status = LinkerSuccess;
-  ElfFile* result = ElfFileNewEmpty();
-  if (!result) {
-    status = MemoryError;
-    goto ElfMergeSectionsCleanup;
-  }
 
   for (int i = 1; i < f1_sec_count; i++) {
     SectionMapAddSection(&mapping, f1_sec[i].name, &f1_sec[i]);
   }
+
   // Iterate over f2's sections to find matches
   for (int i = 1; i < f2_sec_count; i++) {
     SectionMap* lookup = NULL;
@@ -100,13 +72,10 @@ LinkerStatus ElfMergeSections(ElfFile** out, ElfFile* f1, ElfFile* f2) {
   }
   // Number of sections within the result file (+1 to account for SHT_NULL)
   uint32_t section_count = HASH_COUNT(mapping) + 1;
+
+  ElfFile* result = ElfFileNewEmpty();
   result->header.e_shnum = section_count;
   result->sections = calloc(section_count, sizeof(ElfSection));
-  if (!result->sections) {
-    status = MemoryError;
-    free(result);
-    goto ElfMergeSectionsCleanup;
-  }
   SectionMap *curr, *tmp;
   int i = 1;
   HASH_ITER(hh, mapping, curr, tmp) {
@@ -127,20 +96,16 @@ LinkerStatus ElfMergeSections(ElfFile** out, ElfFile* f1, ElfFile* f2) {
                                             .sh_info = 0,
                                             .sh_addralign = 0};
   result->sections[0].data = NULL;
-  result->header.e_shnum = i;
-  *out = result;
-ElfMergeSectionsCleanup:
+
   /* Memory clean-up */
   HASH_ITER(hh, mapping, curr, tmp) {
     HASH_DEL(mapping, curr);
     free(curr->name);
     free(curr);
   }
-  if (status != LinkerSuccess && result) {
-    ElfFileDestroy(result);
-    result = NULL;
-  }
-  return status;
+
+  result->header.e_shnum = i;
+  return result;
 }
 static ElfSection CreateMergedSection(SectionMap* entry) {
   /* Not sure of all the copying going on here, but I'd rather
@@ -226,60 +191,22 @@ static ElfSection CreateMergedSection(SectionMap* entry) {
   return section;
 }
 
-LinkerStatus LinkerProcessShstrtab(ElfFile* elf) {
-  size_t strtab_size = 0;
-
-  uint32_t new_count = elf->header.e_shnum + 1;
-  ElfSection* new_ptr = realloc(elf->sections, new_count * sizeof(ElfSection));
-  if (!new_ptr) {
-    return LinkerMemoryError;
-  }
-  StringBuilder builder = StringBuilderNew();
-  elf->sections = new_ptr;
-  uint32_t shstrtab_idx = elf->header.e_shnum;
-  elf->header.e_shnum = new_count;
-  elf->header.e_shstrndx = shstrtab_idx;
-
-  elf->sections[shstrtab_idx].name = strdup(".shstrtab");
-  if (!elf->sections[shstrtab_idx].name) return LinkerMemoryError;
-  elf->sections[shstrtab_idx].data = NULL;
-  elf->sections[shstrtab_idx].header = (Elf32_Shdr){
-      .sh_type = SHT_STRTAB, .sh_size = strtab_size, .sh_addralign = 1};
-
-  uint32_t name_offset = 1;
-  for (uint32_t i = 1; i < elf->header.e_shnum; ++i) {
-    name_offset = StringBuilderAppend(&builder, elf->sections[i].name);
-    elf->sections[i].header.sh_name = name_offset;
-  }
-  // the shstrtab takes ownership of this. should never be freed.
-  elf->sections[shstrtab_idx].data = (uint8_t*)builder.data;
-  elf->sections[shstrtab_idx].header.sh_size = builder.size;
-  return LinkerSuccess;
-}
 bool isSingleton(ElfSection* section) {
   // Those sections should only be present once in the result file.
   return strcmp(section->name, ".comment") == 0 ||
          strcmp(section->name, ".ARM.attributes") == 0;
 }
-static LinkerStatus SectionMapAddSection(SectionMap** map, const char* name,
-                                         ElfSection* target) {
+static void SectionMapAddSection(SectionMap** map, const char* name,
+                                 ElfSection* target) {
   SectionMap* s = malloc(sizeof(SectionMap));
-  if (!s) return LinkerMemoryError;
-
   s->name = strdup(name);
-  if (!s->name) {
-    free(s);
-    return LinkerMemoryError;
-  }
-
   s->target = target;
   s->source = NULL;
   s->offset = 0;
   s->strategy = GetMergeStrategy(target);
-
   HASH_ADD_KEYPTR(hh, *map, s->name, strlen(s->name), s);
-  return LinkerSuccess;
 }
+
 static void SectionMapUpdateSource(SectionMap* map, const char* name,
                                    ElfSection* source, uint32_t delta) {
   SectionMap* s = NULL;
