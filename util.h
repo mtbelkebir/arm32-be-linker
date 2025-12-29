@@ -68,4 +68,13 @@ Elf32_Ehdr _SwapElf32_Ehdr(Elf32_Ehdr h);
       Elf32_Ehdr: _SwapElf32_Ehdr)(x)
 #define min(x, y) ((x) < (y) ? (x) : (y))
 #define max(x, y) ((x) > (y) ? (x) : (y))
+
+typedef struct StringBuilder {
+  char* data;
+  size_t size;
+  size_t capacity;
+} StringBuilder;
+StringBuilder StringBuilderNew();
+uint32_t StringBuilderAppend(StringBuilder* builder, const char* str);
+void StringBuilderDestroy(StringBuilder* builder);
 #endif
