@@ -59,5 +59,5 @@ Elf32_Ehdr _SwapElf32_Ehdr(Elf32_Ehdr h);
       Elf32_Shdr: _SwapElf32_Shdr, \
       Elf32_Ehdr: _SwapElf32_Ehdr)(x)
 #define min(x, y) ((x) < (y) ? (x) : (y))
-
+#define max(x, y) ((x) > (y) ? (x) : (y))
 #endif
