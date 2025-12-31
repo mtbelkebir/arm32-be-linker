@@ -19,11 +19,11 @@ readelf_LDADD = libelflinker.a
 ld_SOURCES_ = ld.c
 ld_LDADD = libelflinker.a
 # --- Unit Tests (Pure Unity) ---
-check_PROGRAMS = test_extract_elf_headers
+check_PROGRAMS = test_ElfFile
 TESTS = $(check_PROGRAMS)
 
 # We only need the unity.c file and our test file
-test_extract_elf_headers_SOURCES = tests/test_extract_elf_headers.c $(UNITY_DIR)/unity.c
-test_extract_elf_headers_LDADD = libelflinker.a
+test_ElfFile_SOURCES = tests/test_ElfFile.c $(UNITY_DIR)/unity.c
+test_ElfFile_LDADD = libelflinker.a
 
 EXTRA_DIST = filtre.pl .gitignore
