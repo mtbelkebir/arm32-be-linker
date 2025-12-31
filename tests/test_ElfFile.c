@@ -130,7 +130,7 @@ void test_ElfFileNew_NonARMMachine_ParsesSuccessfully(void) {
   ElfFileDestroy(elf);
 }
 
-void test_ElfFileNew_SectionOffsetBeyondFile_ReturnsIoError(void) {
+void test_ElfFileNew_SectionOffsetBeyondFile_ReturnsFileTooShort(void) {
   uint8_t data[512] = {0x7f, 'E', 'L', 'F', ELFCLASS32, ELFDATA2MSB};
   Elf32_Ehdr* h = (Elf32_Ehdr*)data;
   h->e_shnum = 0x0100;
@@ -138,7 +138,7 @@ void test_ElfFileNew_SectionOffsetBeyondFile_ReturnsIoError(void) {
 
   create_test_file("bad_off.o", data, sizeof(data));
   ElfFile* elf = NULL;
-  TEST_ASSERT_EQUAL(IoError, ElfFileNew(get_path("bad_off.o"), &elf));
+  TEST_ASSERT_EQUAL(FileTooShort, ElfFileNew(get_path("bad_off.o"), &elf));
 }
 
 void test_ElfFileNew_CorruptedHeader_DoesNotCrash(void) {
@@ -182,7 +182,7 @@ int main(void) {
   RUN_TEST(test_ElfFileNew_InsufficientSections_ReturnsFileTooShort);
   RUN_TEST(test_ElfFileNew_LittleEndian_ReturnsUnsupportedEndianness);
   RUN_TEST(test_ElfFileNew_NonARMMachine_ParsesSuccessfully);
-  RUN_TEST(test_ElfFileNew_SectionOffsetBeyondFile_ReturnsIoError);
+  RUN_TEST(test_ElfFileNew_SectionOffsetBeyondFile_ReturnsFileTooShort);
   RUN_TEST(test_ElfFileNew_CorruptedHeader_DoesNotCrash);
   RUN_TEST(test_ElfFileNew_NonExistentFile_ReturnsIoError);
   RUN_TEST(test_ElfFileNew_InvalidArguments);
