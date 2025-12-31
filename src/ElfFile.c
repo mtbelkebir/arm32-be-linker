@@ -199,6 +199,8 @@ static ElfParsingStatus _ParseElfSections(ElfFile* file) {
 }
 static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
   if (!file || !file->sections) return InvalidArguments;
+  // File does not have sections, we don't have to do anything.
+  if (!file->sections) return Success;
 
   ElfSection* sym_sec = NULL;
   for (int i = 0; i < file->header.e_shnum; i++) {
@@ -265,6 +267,7 @@ static ElfParsingStatus _ParseElfSymbols(ElfFile* file) {
 }
 static ElfParsingStatus _ParseElfRelocations(ElfFile* file) {
   if (!file || !file->sections) return InvalidArguments;
+  if (!file->sections) return Success;
 
   uint32_t rel_section_count = 0;
   ElfSection** rel_sections =
