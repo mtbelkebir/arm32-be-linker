@@ -167,7 +167,11 @@ void test_ElfFileNew_InvalidArguments(void) {
 void test_ElfFileNew_ELF64_ReturnsUnsupportedClass(void) {
   uint8_t data[64] = {0x7f, 'E', 'L', 'F', ELFCLASS64, ELFDATA2MSB};
   create_test_file("64.o", data, sizeof(data));
-  TEST_ASSERT_EQUAL(UnsupportedClass, ElfFileNew(get_path("64.o"), NULL));
+  ElfFile* file = NULL;
+  TEST_ASSERT_EQUAL(UnsupportedClass, ElfFileNew(get_path("64.o"), &file));
+  if (file) {
+    ElfFileDestroy(file);
+  }
 }
 
 int main(void) {
