@@ -55,7 +55,7 @@ ElfParsingStatus ElfFileNew(const char* path, ElfFile** out) {
 }
 
 ElfFile* ElfFileNewEmpty() {
-  ElfFile* new = malloc(sizeof(ElfFile));
+  ElfFile* new = calloc(1, sizeof(ElfFile));
   if (new == NULL) {
     return NULL;
   }
@@ -64,13 +64,9 @@ ElfFile* ElfFileNewEmpty() {
   new->rel_tables_count = 0;
   new->header = (Elf32_Ehdr){
       .e_ehsize = sizeof(Elf32_Ehdr),
-      .e_flags = 0,
       .e_ident = {0x7f, 'E', 'L', 'F', ELFCLASS32, ELFDATA2MSB, EV_CURRENT, 0},
-      .e_entry = 0,
       .e_machine = EM_ARM,
       .e_version = EV_CURRENT,
-      .e_phoff = 0,
-      .e_shoff = 0,
       .e_type = ET_REL,
       .e_shentsize = sizeof(Elf32_Shdr),
   };
