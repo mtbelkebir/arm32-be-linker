@@ -52,9 +52,10 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  ElfFile *result = ElfMergeSections(f1, f2);
+  ElfFile *result = NULL;
+  LinkerStatus linker_status = MergeFiles(&result, f1, f2);
 
-  if (result) {
+  if (linker_status != LinkerSuccess) {
     if (ElfFileWriteToDisk(output_path, result) != Success) {
       fprintf(stderr, "An error occured writing file to disk %s\n",
               output_path);

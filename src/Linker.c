@@ -2,9 +2,12 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "uthash.h"
 #include "util.h"
+
+// TODO(Mohand Tahar) : Finish verifying all memory allocs.
 
 /**
  * Defines exactly *how* to merge two sections.
@@ -21,11 +24,11 @@ typedef enum MergeStrategy {
 } MergeStrategy;
 
 /**
- *  This struct is meant to keep track of sections merging (who goes into
+ * This struct is meant to keep track of sections merging (who goes into
  * whom?). The use of uthash for this greatly simplifies lookup by name and
  * allows matching in O(n) instead of O(n²).
  *
- *  It is only for internal use hence why it's declared here instead of the .h
+ * It is only for internal use hence why it's declared here instead of the .h
  */
 typedef struct SectionMap {
   char* name; /*< Will be used as a key */
@@ -191,11 +194,41 @@ static ElfSection CreateMergedSection(SectionMap* entry) {
   return section;
 }
 
+static LinkerStatus LinkerProcessShstrtab(ElfFile* elf) {
+  uint32_t new_count = elf->header.e_shnum + 1;
+  ElfSection* new_ptr = realloc(elf->sections, new_count * sizeof(ElfSection));
+  if (!new_ptr) {
+    return LinkerMemoryError;
+  }
+  StringBuilder builder = StringBuilderNew();
+  elf->sections = new_ptr;
+  uint32_t shstrtab_idx = elf->header.e_shnum;
+  elf->header.e_shnum = new_count;
+  elf->header.e_shstrndx = shstrtab_idx;
+
+  elf->sections[shstrtab_idx].name = strdup(".shstrtab");
+  if (!elf->sections[shstrtab_idx].name) return LinkerMemoryError;
+  elf->sections[shstrtab_idx].data = NULL;
+  elf->sections[shstrtab_idx].header =
+      (Elf32_Shdr){.sh_type = SHT_STRTAB, .sh_size = 0, .sh_addralign = 1};
+
+  uint32_t name_offset = 1;
+  for (uint32_t i = 1; i < elf->header.e_shnum; ++i) {
+    name_offset = StringBuilderAppend(&builder, elf->sections[i].name);
+    elf->sections[i].header.sh_name = name_offset;
+  }
+  // the shstrtab takes ownership of this. should never be freed.
+  elf->sections[shstrtab_idx].data = (uint8_t*)builder.data;
+  elf->sections[shstrtab_idx].header.sh_size = builder.size;
+  return LinkerSuccess;
+}
+
 bool isSingleton(ElfSection* section) {
   // Those sections should only be present once in the result file.
   return strcmp(section->name, ".comment") == 0 ||
          strcmp(section->name, ".ARM.attributes") == 0;
 }
+
 static void SectionMapAddSection(SectionMap** map, const char* name,
                                  ElfSection* target) {
   SectionMap* s = malloc(sizeof(SectionMap));
@@ -228,15 +261,3 @@ static MergeStrategy GetMergeStrategy(ElfSection* section) {
       return isSingleton(section) ? Singleton : Concatenate;
   }
 }
-/*
- * Uncomment this when you need it.
-static void SectionMapRemoveSection(SectionMap** map, const char* name) {
-  SectionMap* s = NULL;
-  HASH_FIND_STR(*map, name, s);
-  if (s != NULL) {
-    HASH_DEL(*map, s);
-    free(s->name);
-    free(s);
-  }
-}
-*/

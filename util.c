@@ -61,7 +61,6 @@ Elf32_Shdr _SwapElf32_Shdr(Elf32_Shdr s) {
   s.sh_entsize = byte_swap(s.sh_entsize);
   return s;
 }
-
 StringBuilder StringBuilderNew() {
   return (StringBuilder){
       .data = calloc(1, sizeof(char)),
