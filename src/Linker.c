@@ -161,6 +161,7 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
 
   // Copy all locals into out
   for (size_t i = 0; i < n_loc1; i++) {
+    ctx->f1_sym_to_out_idx[i] = current_idx;
     ElfSymbol s = *loc1[i];
     // Relocate section index
     if (s.sym.st_shndx != SHN_UNDEF && s.sym.st_shndx < SHN_LORESERVE) {
@@ -169,6 +170,7 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
     out->symbols_table->symbols[current_idx++] = s;
   }
   for (size_t i = 0; i < n_loc2; i++) {
+    ctx->f2_sym_to_out_idx[i] = current_idx;
     ElfSymbol s = *loc2[i];
     // Relocate section index and apply delta (rebase)
     if (s.sym.st_shndx != SHN_UNDEF && s.sym.st_shndx < SHN_LORESERVE) {
@@ -193,7 +195,9 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
       if (from_f2) {
         s.sym.st_value += ctx->f2_offsets[old_idx];
         s.sym.st_shndx = ctx->f2_sec_to_out_idx[old_idx];
+        ctx->f2_sym_to_out_idx[old_idx] = current_idx;
       } else {
+        ctx->f1_sym_to_out_idx[old_idx] = current_idx;
         s.sym.st_shndx = ctx->f1_sec_to_out_idx[old_idx];
       }
     }
