@@ -7,6 +7,6 @@ typedef enum LinkerStatus {
   LinkerMemoryError,
   LinkerUndefinedSymbol,
 } LinkerStatus;
+
 LinkerStatus MergeFiles(ElfFile** out, ElfFile* f1, ElfFile* f2);
-ElfFile* ElfMergeSections(ElfFile* f1, ElfFile* f2);
 #endif  // ELF_MERGE_H

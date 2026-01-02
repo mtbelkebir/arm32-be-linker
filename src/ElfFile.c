@@ -899,3 +899,36 @@ ElfParsingStatus ElfFileWriteToDisk(const char* path, ElfFile* f) {
   fclose(file);
   return Success;
 }
+
+ElfSymbol** ElfFileGetSymbolsByType(ElfFile* f, uint32_t type,
+                                    size_t* out_count) {
+  size_t count = 0;
+  ElfSymbol** symbols = calloc(f->symbols_table->count, sizeof(ElfSymbol*));
+  if (!symbols) {
+    return NULL;
+  }
+  for (uint32_t i = 1; i < f->symbols_table->count; ++i) {
+    if (ELF32_ST_TYPE(f->symbols_table->symbols[i].sym.st_info) == type) {
+      symbols[count++] = &f->symbols_table->symbols[i];
+    }
+  }
+
+  *out_count = count;
+  return symbols;
+}
+ElfSymbol** ElfFileGetSymbolsByBinding(ElfFile* f, uint32_t bind,
+                                       size_t* out_count) {
+  size_t count = 0;
+  ElfSymbol** symbols = calloc(f->symbols_table->count, sizeof(ElfSymbol*));
+  if (!symbols) {
+    return NULL;
+  }
+  for (uint32_t i = 1; i < f->symbols_table->count; ++i) {
+    if (ELF32_ST_BIND(f->symbols_table->symbols[i].sym.st_info) == bind) {
+      symbols[count++] = &f->symbols_table->symbols[i];
+    }
+  }
+
+  *out_count = count;
+  return symbols;
+}

@@ -61,6 +61,14 @@ Elf32_Shdr _SwapElf32_Shdr(Elf32_Shdr s) {
   s.sh_entsize = byte_swap(s.sh_entsize);
   return s;
 }
+
+Elf32_Sym _SwapElf32_Sym(Elf32_Sym s) {
+  s.st_name = byte_swap(s.st_name);
+  s.st_value = byte_swap(s.st_value);
+  s.st_size = byte_swap(s.st_size);
+  s.st_shndx = byte_swap(s.st_shndx);
+  return s;
+}
 StringBuilder StringBuilderNew() {
   return (StringBuilder){
       .data = calloc(1, sizeof(char)),

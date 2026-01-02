@@ -58,6 +58,8 @@ Elf32_Shdr _SwapElf32_Shdr(Elf32_Shdr s);
  */
 Elf32_Ehdr _SwapElf32_Ehdr(Elf32_Ehdr h);
 
+Elf32_Sym _SwapElf32_Sym(Elf32_Sym sym);
+
 #define byte_swap(x)               \
   _Generic((x),                    \
       uint16_t: reverse_2,         \
@@ -65,7 +67,8 @@ Elf32_Ehdr _SwapElf32_Ehdr(Elf32_Ehdr h);
       int16_t: reverse_2,          \
       int32_t: reverse_4,          \
       Elf32_Shdr: _SwapElf32_Shdr, \
-      Elf32_Ehdr: _SwapElf32_Ehdr)(x)
+      Elf32_Ehdr: _SwapElf32_Ehdr, \
+      Elf32_Sym: _SwapElf32_Sym)(x)
 #define min(x, y) ((x) < (y) ? (x) : (y))
 #define max(x, y) ((x) > (y) ? (x) : (y))
 
