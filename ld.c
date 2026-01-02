@@ -63,6 +63,8 @@ int main(int argc, char** argv) {
       printf("Linking successful at output %s\n", output_path);
     }
     ElfFileDestroy(result);
+  } else {
+    fprintf(stderr, "Error linking %s, (%s)\n", file1_path, "");
   }
 
   ElfFileDestroy(f1);
