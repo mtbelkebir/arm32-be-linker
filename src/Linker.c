@@ -115,10 +115,6 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   ElfSymbol** glob1 = ElfFileGetSymbolsByBinding(f1, STB_GLOBAL, &n_glob1);
   ElfSymbol** glob2 = ElfFileGetSymbolsByBinding(f2, STB_GLOBAL, &n_glob2);
 
-  size_t n_loc1 = 0, n_loc2 = 0;
-  ElfSymbol** loc1 = ElfFileGetSymbolsByBinding(f1, STB_LOCAL, &n_loc1);
-  ElfSymbol** loc2 = ElfFileGetSymbolsByBinding(f2, STB_LOCAL, &n_loc2);
-
   if ((n_glob1 > 0 && !glob1) || (n_glob2 > 0 && !glob2)) {
     status = LinkerMemoryError;
     goto Cleanup;
@@ -152,9 +148,9 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
     }
   }
 
-  size_t total_symbols = 1 + n_loc1 + n_loc2 + HASH_COUNT(ctx->symbol_map);
-  out->symbols_table->symbols = calloc(total_symbols, sizeof(ElfSymbol));
-  out->symbols_table->count = total_symbols;
+  // Allocate maximum possible size, we will adjust at the end
+  size_t total_max = 1 + f1->symbols_table->count + f2->symbols_table->count;
+  out->symbols_table->symbols = calloc(total_max, sizeof(ElfSymbol));
 
   // 0 is for the undefined symbol.
   size_t current_idx = 1;
@@ -180,11 +176,82 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
     }
     out->symbols_table->symbols[current_idx++] = s;
   }
+  // We iterate over ALL symbols from f1 to fill mapping tables correctly
+  for (size_t i = 1; i < f1->symbols_table->count; i++) {
+    ElfSymbol* s_orig = &f1->symbols_table->symbols[i];
+    if (ELF32_ST_BIND(s_orig->sym.st_info) == STB_LOCAL) {
+      // Filter out empty local symbols that point to nothing (UNDEF)
+      if (s_orig->sym.st_shndx == SHN_UNDEF &&
+          ELF32_ST_TYPE(s_orig->sym.st_info) != STT_SECTION) {
+        continue;
+      }
+
+      ctx->f1_sym_to_out_idx[i] = current_idx;
+      ElfSymbol s = *s_orig;
+      // Relocate section index
+      if (s.sym.st_shndx != SHN_UNDEF && s.sym.st_shndx < SHN_LORESERVE) {
+        s.sym.st_shndx = ctx->f1_sec_to_out_idx[s.sym.st_shndx];
+      }
+      out->symbols_table->symbols[current_idx++] = s;
+    }
+  }
+
+  for (size_t i = 1; i < f2->symbols_table->count; i++) {
+    ElfSymbol* s_orig = &f2->symbols_table->symbols[i];
+    if (ELF32_ST_BIND(s_orig->sym.st_info) == STB_LOCAL) {
+      if (s_orig->sym.st_shndx == SHN_UNDEF &&
+          ELF32_ST_TYPE(s_orig->sym.st_info) != STT_SECTION) {
+        continue;
+      }
+
+      // Merge sections: If it's a section symbol, check if it already exists in
+      // out
+      if (ELF32_ST_TYPE(s_orig->sym.st_info) == STT_SECTION) {
+        uint32_t existing_idx = 0;
+        for (uint32_t k = 1; k < current_idx; k++) {
+          if (out->symbols_table->symbols[k].name && s_orig->name &&
+              strcmp(out->symbols_table->symbols[k].name, s_orig->name) == 0) {
+            existing_idx = k;
+            break;
+          }
+        }
+        if (existing_idx > 0) {
+          ctx->f2_sym_to_out_idx[i] = existing_idx;
+          continue;  // Do not add duplicate section symbol
+        }
+      }
+
+      ctx->f2_sym_to_out_idx[i] = current_idx;
+      ElfSymbol s = *s_orig;
+      // Relocate section index and apply delta (rebase)
+      if (s.sym.st_shndx != SHN_UNDEF && s.sym.st_shndx < SHN_LORESERVE) {
+        uint32_t old_idx = s.sym.st_shndx;
+        s.sym.st_value += ctx->f2_offsets[old_idx];
+        s.sym.st_shndx = ctx->f2_sec_to_out_idx[old_idx];
+      }
+      out->symbols_table->symbols[current_idx++] = s;
+    }
+  }
+
+  uint32_t first_global_idx = current_idx;
 
   // Copy of globals
   SymbolMap *curr_s, *tmp_s;
   HASH_ITER(hh, ctx->symbol_map, curr_s, tmp_s) {
     ElfSymbol s = *(curr_s->symbol);
+    uint32_t out_idx = current_idx;
+
+    // Update mapping for all files referencing this global
+    for (size_t i = 0; i < f1->symbols_table->count; i++) {
+      if (f1->symbols_table->symbols[i].name &&
+          strcmp(f1->symbols_table->symbols[i].name, curr_s->name) == 0)
+        ctx->f1_sym_to_out_idx[i] = out_idx;
+    }
+    for (size_t i = 0; i < f2->symbols_table->count; i++) {
+      if (f2->symbols_table->symbols[i].name &&
+          strcmp(f2->symbols_table->symbols[i].name, curr_s->name) == 0)
+        ctx->f2_sym_to_out_idx[i] = out_idx;
+    }
 
     if (s.sym.st_shndx != SHN_UNDEF && s.sym.st_shndx < SHN_LORESERVE) {
       uint32_t old_idx = s.sym.st_shndx;
@@ -203,6 +270,9 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
     }
     out->symbols_table->symbols[current_idx++] = s;
   }
+
+  uint32_t total_symbols = current_idx;
+  out->symbols_table->count = total_symbols;
 
   // Creation of .strtab
   StringBuilder builder = StringBuilderNew();
@@ -226,9 +296,11 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   out->sections[strtab_idx].header.sh_size = builder.size;
   out->sections[strtab_idx].header.sh_type = SHT_STRTAB;
   out->sections[strtab_idx].header.sh_addralign = 1;
+  out->sections[strtab_idx].header.sh_entsize = 0;
 
   // Creation of .symtab
   uint32_t symtab_idx = out->header.e_shnum;
+  ctx->symtab_idx = symtab_idx;
   out->header.e_shnum++;
   out->sections =
       realloc(out->sections, out->header.e_shnum * sizeof(ElfSection));
@@ -241,16 +313,12 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   out->sections[symtab_idx].header.sh_link =
       strtab_idx;  // link to the previously created strtab
   out->sections[symtab_idx].header.sh_info =
-      1 + n_loc1 + n_loc2;  // index of first global sym
+      first_global_idx;  // index of first global sym
 
   // Also store data as raw binary
-  out->sections[symtab_idx].data =
-      malloc(out->sections[symtab_idx].header.sh_size);
-
   uint32_t sym_size = sizeof(Elf32_Sym);
   out->sections[symtab_idx].data = calloc(total_symbols, sym_size);
   for (size_t i = 0; i < total_symbols; i++) {
-    // 2. Récupérer la structure ELF propre
     Elf32_Sym s = out->symbols_table->symbols[i].sym;
 
     if (!is_host_big_endian()) {
@@ -278,7 +346,8 @@ LinkerStatus MergeFiles(ElfFile** out, ElfFile* f1, ElfFile* f2) {
                        .in2 = f2,
                        .section_map = NULL,
                        .out = NULL,
-                       .symbol_map = NULL};
+                       .symbol_map = NULL,
+                       .symtab_idx = SHN_UNDEF};
 
   LinkerStatus status = ElfMergeSections(&ctx);
 
