@@ -695,8 +695,11 @@ static void SectionMapUpdateSource(SectionMap* map, const char* name,
 }
 
 static MergeStrategy GetMergeStrategy(ElfSection* section) {
-  if (strstr(section->name, ".debug") == section->name ||
-      strstr(section->name, ".rel.debug") == section->name) {
+  if (!section || !section->name) {
+    return Ignore;
+  }
+  if (section->name && (strstr(section->name, ".debug") == section->name ||
+                        strstr(section->name, ".rel.debug") == section->name)) {
     return Ignore;
   }
   switch (section->header.sh_type) {
