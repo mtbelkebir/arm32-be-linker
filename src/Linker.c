@@ -429,6 +429,9 @@ LinkerStatus LinkerMergeSections(LinkerContext* ctx) {
 
   ElfFile* result = ElfFileNewEmpty();
   result->header.e_shnum = section_count;
+  // FIXME : This is not how it actually works, is enough for the presentation
+  // hopefully.
+  result->header.e_flags = ctx->in1->header.e_flags;
   result->sections = calloc(section_count, sizeof(ElfSection));
   SectionMap *curr, *tmp;
   int i = 1;
