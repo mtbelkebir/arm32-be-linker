@@ -13,9 +13,9 @@
 typedef enum MergeStrategy {
   Concatenate, /**< For sections such a .text, .data, etc. Add them
                   together. */
-  Singleton,   /**< For sections like .ARM.attributes that should only be kept
+  Singleton, /**< For sections like .ARM.attributes that should only be kept
                   once. */
-  NoBits,      /**< For sections like .bss whose merging is just adding up their
+  NoBits, /**< For sections like .bss whose merging is just adding up their
                   sizes */
   Ignore, /**< For .symtab, .shstrab, etc. Those will be treated in an future
               step */
@@ -67,6 +67,7 @@ typedef struct LinkerContext {
   uint32_t* f2_offsets;
   SymbolMap* symbol_map;
 } LinkerContext;
+
 static void SectionMapUpdateSource(const SectionMap* map, const char* name,
                                    ElfSection* source, uint32_t delta);
 static ElfSection MergeSections(SectionMap* entry);
@@ -111,6 +112,7 @@ void SymbolMapFreeAll(SymbolMap** map) {
     free(current);
   }
 }
+
 LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   LinkerStatus status = LinkerSuccess;
   ElfFile *out = ctx->out, *f1 = ctx->in1, *f2 = ctx->in2;
@@ -137,12 +139,21 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
     if (lookup) {
       bool f1_def = (s1->sym.st_shndx != SHN_UNDEF);
       bool f2_def = (lookup->symbol->sym.st_shndx != SHN_UNDEF);
-      // Both defined, that's a conflict
+      // Both defined, check binding
       if (f1_def && f2_def) {
-        status = LinkerDuplicateSymbol;
-        goto Cleanup;
-      }
-      if (f1_def && !f2_def) {
+        uint8_t b1 = ELF32_ST_BIND(s1->sym.st_info);
+        uint8_t b2 = ELF32_ST_BIND(lookup->symbol->sym.st_info);
+        if (b1 != STB_WEAK && b2 != STB_WEAK) {
+          // That's a conflict
+          status = LinkerDuplicateSymbol;
+          goto Cleanup;
+        }
+        if (b1 != STB_WEAK && b2 == STB_WEAK) {
+          lookup->symbol = s1;
+          lookup->is_defined = true;
+        }
+        // if both are weak, there's nothing to do. We keep the first symbol we found.
+      } else if (f1_def && !f2_def) {
         // That's the definition
         lookup->symbol = s1;
         lookup->is_defined = true;
@@ -195,14 +206,15 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
         uint32_t existing_idx = 0;
         for (uint32_t k = 1; k < current_idx; k++) {
           if (out->symbols_table->symbols[k].name && s_orig->name &&
-              strcmp(out->symbols_table->symbols[k].name, s_orig->name) == 0) {
+              strcmp(out->symbols_table->symbols[k].name,
+                     s_orig->name) == 0) {
             existing_idx = k;
             break;
           }
         }
         if (existing_idx > 0) {
           ctx->f2_sym_to_out_idx[i] = existing_idx;
-          continue;  // Do not add duplicate section symbol
+          continue; // Do not add duplicate section symbol
         }
       }
 
@@ -301,12 +313,13 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   out->sections[symtab_idx].name = strdup(".symtab");
   out->sections[symtab_idx].header.sh_type = SHT_SYMTAB;
   out->sections[symtab_idx].header.sh_entsize = sizeof(Elf32_Sym);
-  out->sections[symtab_idx].header.sh_size = total_symbols * sizeof(Elf32_Sym);
+  out->sections[symtab_idx].header.sh_size =
+      total_symbols * sizeof(Elf32_Sym);
   out->sections[symtab_idx].header.sh_addralign = 4;
   out->sections[symtab_idx].header.sh_link =
-      strtab_idx;  // link to the previously created strtab
+      strtab_idx; // link to the previously created strtab
   out->sections[symtab_idx].header.sh_info =
-      first_global_idx;  // index of first global sym
+      first_global_idx; // index of first global sym
 
   // Also store data as raw binary
   uint32_t sym_size = sizeof(Elf32_Sym);
@@ -328,6 +341,7 @@ Cleanup:
   if (glob2) free(glob2);
   return status;
 }
+
 LinkerStatus MergeFiles(ElfFile** out, ElfFile* f1, ElfFile* f2) {
   LinkerContext ctx = {.in1 = f1,
                        .in2 = f2,
@@ -368,17 +382,20 @@ MergeFilesFail:
 LinkerStatus LinkerMergeSections(LinkerContext* ctx) {
   ElfFile *f1 = ctx->in1, *f2 = ctx->in2;
   ElfSection *f1_sec = f1->sections, *f2_sec = f2->sections;
-  uint32_t f1_sec_count = f1->header.e_shnum, f2_sec_count = f2->header.e_shnum;
+  uint32_t f1_sec_count = f1->header.e_shnum, f2_sec_count = f2->header.
+               e_shnum;
   ctx->f1_sec_to_out_idx = calloc(ctx->in1->header.e_shnum, sizeof(uint32_t));
   ctx->f2_sec_to_out_idx = calloc(ctx->in2->header.e_shnum, sizeof(uint32_t));
   ctx->f2_offsets = calloc(ctx->in2->header.e_shnum, sizeof(uint32_t));
 
   uint32_t n_syms_f1 = 0, n_syms_f2 = 0;
-  ElfSection** s1 = ElfFileGetSectionsByType(&n_syms_f1, SHT_SYMTAB, ctx->in1);
+  ElfSection** s1 =
+      ElfFileGetSectionsByType(&n_syms_f1, SHT_SYMTAB, ctx->in1);
   uint32_t f1_sym_count =
       (s1) ? (s1[0]->header.sh_size / sizeof(Elf32_Sym)) : 0;
   ctx->f1_sym_to_out_idx = calloc(f1_sym_count, sizeof(uint32_t));
-  ElfSection** s2 = ElfFileGetSectionsByType(&n_syms_f2, SHT_SYMTAB, ctx->in2);
+  ElfSection** s2 =
+      ElfFileGetSectionsByType(&n_syms_f2, SHT_SYMTAB, ctx->in2);
   uint32_t f2_sym_count =
       (s2) ? (s2[0]->header.sh_size / sizeof(Elf32_Sym)) : 0;
   ctx->f2_sym_to_out_idx = calloc(f2_sym_count, sizeof(uint32_t));
@@ -491,7 +508,8 @@ static ElfSection MergeSections(SectionMap* entry) {
 
         // Merge both sections
         section.header = entry->target->header;
-        section.header.sh_size = entry->offset + entry->source->header.sh_size;
+        section.header.sh_size =
+            entry->offset + entry->source->header.sh_size;
         section.header.sh_addralign = alignment;
         section.data = malloc(section.header.sh_size);
         if (section.data) {
@@ -523,22 +541,26 @@ static ElfSection MergeSections(SectionMap* entry) {
           (entry->target ? entry->target->header : entry->source->header);
       section.data = NULL;
       if (entry->target && entry->source) {
-        section.header.sh_size = entry->offset + entry->source->header.sh_size;
+        section.header.sh_size =
+            entry->offset + entry->source->header.sh_size;
       } else {
         section.header.sh_size =
-            (entry->target ? entry->target->header.sh_size
-                           : entry->source->header.sh_size);
+        (entry->target
+           ? entry->target->header.sh_size
+           : entry->source->header.sh_size);
       }
       break;
   }
   section.name = strdup(name);
   return section;
 }
+
 static LinkerStatus LinkerGenerateShstrtab(const LinkerContext* ctx) {
   ElfFile* elf = ctx->out;
 
   uint32_t new_count = elf->header.e_shnum + 1;
-  ElfSection* new_ptr = realloc(elf->sections, new_count * sizeof(ElfSection));
+  ElfSection* new_ptr =
+      realloc(elf->sections, new_count * sizeof(ElfSection));
   if (!new_ptr) {
     return LinkerMemoryError;
   }
@@ -584,7 +606,7 @@ static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx) {
       continue;
     }
     // FIXME: what if the section's name is just ".rel"? does this even happen?
-    char* og_section_name = rel_sections[i]->name + 4;  // To remove the .rel
+    char* og_section_name = rel_sections[i]->name + 4; // To remove the .rel
 
     SectionMap* lookup = NULL;
     HASH_FIND_STR(ctx->section_map, og_section_name, lookup);
@@ -617,7 +639,9 @@ static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx) {
       uint32_t r_info =
           !is_host_big_endian() ? byte_swap(entry->r_info) : entry->r_info;
       uint32_t r_offset =
-          !is_host_big_endian() ? byte_swap(entry->r_offset) : entry->r_offset;
+          !is_host_big_endian()
+            ? byte_swap(entry->r_offset)
+            : entry->r_offset;
 
       uint32_t r_type = ELF32_R_TYPE(r_info);
       uint32_t old_sym_idx = ELF32_R_SYM(r_info);
@@ -645,8 +669,8 @@ static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx) {
       entries[j].r_offset =
           !is_host_big_endian() ? byte_swap(r_offset) : r_offset;
       entries[j].r_info = !is_host_big_endian()
-                              ? byte_swap(ELF32_R_INFO(new_sym_idx, r_type))
-                              : ELF32_R_INFO(new_sym_idx, r_type);
+                            ? byte_swap(ELF32_R_INFO(new_sym_idx, r_type))
+                            : ELF32_R_INFO(new_sym_idx, r_type);
     }
   }
 Cleanup:
@@ -665,7 +689,8 @@ static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr,
 
   if (type == R_ARM_ABS32) {
     inst += delta;
-  } else if (type == R_ARM_JUMP24 || type == R_ARM_CALL || type == R_ARM_PC24) {
+  } else if (type == R_ARM_JUMP24 || type == R_ARM_CALL || type ==
+             R_ARM_PC24) {
     uint32_t imm24 = inst & 0x00ffffff;
     // Checking for the offset's sign
     if (imm24 & 0x00800000) {
@@ -681,6 +706,7 @@ static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr,
   }
   *(uint32_t*)instruction_ptr = inst;
 }
+
 bool isSingleton(const ElfSection* section) {
   // Those sections should only be present once in the result file.
   return strcmp(section->name, ".comment") == 0 ||
@@ -713,7 +739,8 @@ static MergeStrategy GetMergeStrategy(ElfSection* section) {
     return Ignore;
   }
   if (section->name && (strstr(section->name, ".debug") == section->name ||
-                        strstr(section->name, ".rel.debug") == section->name)) {
+                        strstr(section->name, ".rel.debug") == section->
+                        name)) {
     return Ignore;
   }
   switch (section->header.sh_type) {
@@ -733,6 +760,7 @@ static bool IsSymbolFrom(const ElfFile* file, const ElfSymbol* sym) {
   return (sym >= file->symbols_table->symbols &&
           sym < file->symbols_table->symbols + file->symbols_table->count);
 }
+
 static void LinkerContextDestroy(LinkerContext* ctx) {
   if (ctx->symbol_map) {
     SymbolMapFreeAll(&ctx->symbol_map);
