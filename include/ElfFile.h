@@ -23,8 +23,8 @@ typedef struct ElfSection {
  * The name field is heap-allocated and must be freed.
  */
 typedef struct ElfSymbol {
-  char* name;    /**< Symbol name (heap-allocated). */
   Elf32_Sym sym; /**< Standard ELF32 symbol table entry. */
+  char* name;    /**< Symbol name (heap-allocated). */
 } ElfSymbol;
 
 /**
@@ -218,4 +218,21 @@ void ElfFileDisplayRelocations(ElfFile* elf);
  * @return     ElfParsingStatus: Success, or IoError if writing fails.
  */
 ElfParsingStatus ElfFileWriteToDisk(const char* path, ElfFile* f);
+
+/**
+ * @brief Filters symbols by their binding attribute (Local vs. Global).
+
+ * @return A dynamically allocated array of pointers to existing ElfSymbol
+ * structures.
+ */
+ElfSymbol** ElfFileGetSymbolsByBinding(ElfFile* f, uint32_t bind,
+                                       size_t* out_count);
+
+/**
+ * @brief Filters symbols by their type (Function, Object, Section, etc.).
+ * @return A dynamically allocated array of pointers to existing ElfSymbol
+ * structures.
+ */
+ElfSymbol** ElfFileGetSymbolsByType(ElfFile* f, uint32_t type,
+                                    size_t* out_count);
 #endif  //_ELF_OPS_H

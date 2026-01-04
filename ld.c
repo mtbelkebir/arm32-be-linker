@@ -5,14 +5,14 @@
 #include "ElfFile.h"
 #include "Linker.h"
 
-void usage(char *executable) {
+void usage(char* executable) {
   printf("Usage : %s -o [OUTPUT_PATH] -f [FILE1] [FILE2]\n", executable);
 }
 
-int main(int argc, char **argv) {
-  char *output_path = NULL;
-  char *file1_path = NULL;
-  char *file2_path = NULL;
+int main(int argc, char** argv) {
+  char* output_path = NULL;
+  char* file1_path = NULL;
+  char* file2_path = NULL;
   int opt;
 
   while ((opt = getopt(argc, argv, "o:f:")) != -1) {
@@ -37,14 +37,14 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  ElfFile *f1 = NULL;
+  ElfFile* f1 = NULL;
   ElfParsingStatus status = ElfFileNew(file1_path, &f1);
   if (status != Success) {
     fprintf(stderr, "Error loading %s, (%s)\n", file1_path,
             ElfParsingStatusToString(status));
     return EXIT_FAILURE;
   }
-  ElfFile *f2 = NULL;
+  ElfFile* f2 = NULL;
   status = ElfFileNew(file2_path, &f2);
   if (status != Success) {
     fprintf(stderr, "Error loading %s, (%s)\n", file1_path,
@@ -52,9 +52,10 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  ElfFile *result = ElfMergeSections(f1, f2);
+  ElfFile* result = NULL;
+  LinkerStatus linker_status = MergeFiles(&result, f1, f2);
 
-  if (result) {
+  if (linker_status == LinkerSuccess) {
     if (ElfFileWriteToDisk(output_path, result) != Success) {
       fprintf(stderr, "An error occured writing file to disk %s\n",
               output_path);
@@ -62,6 +63,8 @@ int main(int argc, char **argv) {
       printf("Linking successful at output %s\n", output_path);
     }
     ElfFileDestroy(result);
+  } else {
+    fprintf(stderr, "Error linking %s, (%s)\n", file1_path, "");
   }
 
   ElfFileDestroy(f1);
