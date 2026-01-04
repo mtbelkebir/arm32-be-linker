@@ -932,3 +932,33 @@ ElfSymbol** ElfFileGetSymbolsByBinding(ElfFile* f, uint32_t bind,
   *out_count = count;
   return symbols;
 }
+
+ElfSymbol** ElfFileGetExternalSymbols(const ElfFile* f, size_t* out_count) {
+  if (!f || !f->symbols_table) return NULL;
+
+  size_t n = 0;
+
+  for (size_t i = 1; i < f->symbols_table->count; i++) {
+    uint8_t bind = ELF32_ST_BIND(f->symbols_table->symbols[i].sym.st_info);
+    if (bind == STB_GLOBAL || bind == STB_WEAK) n++;
+  }
+
+  if (n == 0) {
+    *out_count = 0;
+    return NULL;
+  }
+
+  ElfSymbol** res = calloc(n, sizeof(ElfSymbol*));
+  if (!res) return NULL;
+
+  size_t idx = 0;
+  for (size_t i = 1; i < f->symbols_table->count; i++) {
+    const uint8_t bind =
+        ELF32_ST_BIND(f->symbols_table->symbols[i].sym.st_info);
+    if (bind == STB_GLOBAL || bind == STB_WEAK) {
+      res[idx++] = &f->symbols_table->symbols[i];
+    }
+  }
+  *out_count = n;
+  return res;
+}
