@@ -7,8 +7,6 @@
 #include "uthash.h"
 #include "util.h"
 
-// TODO(Mohand Tahar) : Finish verifying all memory allocs.
-
 /**
  * Defines exactly *how* to merge two sections.
  */
@@ -69,19 +67,21 @@ typedef struct LinkerContext {
   uint32_t* f2_offsets;
   SymbolMap* symbol_map;
 } LinkerContext;
-static void SectionMapUpdateSource(SectionMap* map, const char* name,
+static void SectionMapUpdateSource(const SectionMap* map, const char* name,
                                    ElfSection* source, uint32_t delta);
-static ElfSection CreateMergedSection(SectionMap* entry);
-bool isSingleton(ElfSection* section);
+static ElfSection MergeSections(SectionMap* entry);
+bool isSingleton(const ElfSection* section);
 static void SectionMapAddSection(SectionMap** map, const char* name,
                                  ElfSection* target);
 static MergeStrategy GetMergeStrategy(ElfSection* section);
-static LinkerStatus LinkerProcessShstrtab(LinkerContext* ctx);
-static LinkerStatus ElfMergeSections(LinkerContext* ctx);
+static LinkerStatus LinkerGenerateShstrtab(const LinkerContext* ctx);
+static LinkerStatus LinkerMergeSections(LinkerContext* ctx);
 static bool IsSymbolFrom(const ElfFile* file, const ElfSymbol* sym);
-static LinkerStatus LinkerUpdateRelocationHeaders(LinkerContext* ctx);
+static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx);
 static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr, uint32_t type,
                                         uint32_t delta);
+static void SectionMapDestroy(SectionMap** map);
+static void LinkerContextDestroy(LinkerContext* ctx);
 
 //-- SymbolsMap
 
@@ -271,8 +271,13 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
 
   uint32_t strtab_idx = out->header.e_shnum;
   out->header.e_shnum++;
-  out->sections =
+  void* realloc_ptr =
       realloc(out->sections, out->header.e_shnum * sizeof(ElfSection));
+  if (!realloc_ptr) {
+    status = LinkerMemoryError;
+    goto Cleanup;
+  }
+  out->sections = realloc_ptr;
 
   out->sections[strtab_idx].name = strdup(".strtab");
   out->sections[strtab_idx].data = (uint8_t*)builder.data;
@@ -285,8 +290,13 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   uint32_t symtab_idx = out->header.e_shnum;
   ctx->symtab_idx = symtab_idx;
   out->header.e_shnum++;
-  out->sections =
+  realloc_ptr =
       realloc(out->sections, out->header.e_shnum * sizeof(ElfSection));
+  if (!realloc_ptr) {
+    status = LinkerMemoryError;
+    goto Cleanup;
+  }
+  out->sections = realloc_ptr;
 
   out->sections[symtab_idx].name = strdup(".symtab");
   out->sections[symtab_idx].header.sh_type = SHT_SYMTAB;
@@ -326,34 +336,36 @@ LinkerStatus MergeFiles(ElfFile** out, ElfFile* f1, ElfFile* f2) {
                        .symbol_map = NULL,
                        .symtab_idx = SHN_UNDEF};
 
-  LinkerStatus status = ElfMergeSections(&ctx);
+  LinkerStatus status = LinkerMergeSections(&ctx);
 
-  // Initialisation de la table des symboles dans result avant de générer
   ctx.out->symbols_table = calloc(1, sizeof(ElfSymbolsTable));
   status = GenerateMergedSymbolsTable(&ctx);
   if (status != LinkerSuccess) {
     goto MergeFilesFail;
   }
 
-  status = LinkerProcessShstrtab(&ctx);
+  status = LinkerGenerateShstrtab(&ctx);
   if (status != LinkerSuccess) {
     goto MergeFilesFail;
   }
 
-  status = LinkerUpdateRelocationHeaders(&ctx);
+  status = LinkerProcessRelocations(&ctx);
   if (status != LinkerSuccess) {
     goto MergeFilesFail;
   }
+
   *out = ctx.out;
+  LinkerContextDestroy(&ctx);
   return status;
 
 MergeFilesFail:
   *out = NULL;
   if (ctx.out) ElfFileDestroy(ctx.out);
+  LinkerContextDestroy(&ctx);
   return status;
 }
 
-LinkerStatus ElfMergeSections(LinkerContext* ctx) {
+LinkerStatus LinkerMergeSections(LinkerContext* ctx) {
   ElfFile *f1 = ctx->in1, *f2 = ctx->in2;
   ElfSection *f1_sec = f1->sections, *f2_sec = f2->sections;
   uint32_t f1_sec_count = f1->header.e_shnum, f2_sec_count = f2->header.e_shnum;
@@ -407,7 +419,7 @@ LinkerStatus ElfMergeSections(LinkerContext* ctx) {
     if (curr->strategy == Ignore) {
       continue;
     }
-    result->sections[i] = CreateMergedSection(curr);
+    result->sections[i] = MergeSections(curr);
     curr->new_idx = i++;
 
     // Tracking of how sections have moved.
@@ -438,10 +450,10 @@ LinkerStatus ElfMergeSections(LinkerContext* ctx) {
   return LinkerSuccess;
 }
 
-static ElfSection CreateMergedSection(SectionMap* entry) {
+static ElfSection MergeSections(SectionMap* entry) {
   /* Not sure of all the copying going on here, but I'd rather
    * have each ElfFile own its data. */
-  ElfSection section;
+  ElfSection section = {0};
 
   if (!entry) return section;
 
@@ -463,7 +475,7 @@ static ElfSection CreateMergedSection(SectionMap* entry) {
 #endif
       break;
     case Singleton:
-      ElfSection* singleton =
+      const ElfSection* singleton =
           entry->target == NULL ? entry->source : entry->target;
       section = (ElfSection){.header = singleton->header,
                              .data = malloc(singleton->header.sh_size)};
@@ -474,8 +486,8 @@ static ElfSection CreateMergedSection(SectionMap* entry) {
         /* If those two sections have, for example, 4 and 8 alignment,
          * the merged section's alignment has to be 8. Otherwise, it simply
          * won't be loaded by the OS. */
-        uint32_t alignment = max(entry->target->header.sh_addralign,
-                                 entry->source->header.sh_addralign);
+        const uint32_t alignment = max(entry->target->header.sh_addralign,
+                                       entry->source->header.sh_addralign);
 
         // Merge both sections
         section.header = entry->target->header;
@@ -497,7 +509,8 @@ static ElfSection CreateMergedSection(SectionMap* entry) {
 #endif
       } else {
         // Section that is only on one file
-        ElfSection* single = entry->source ? entry->source : entry->target;
+        const ElfSection* single =
+            entry->source ? entry->source : entry->target;
         section.header = single->header;
         section.data = malloc(section.header.sh_size);
         if (section.data) {
@@ -521,7 +534,7 @@ static ElfSection CreateMergedSection(SectionMap* entry) {
   section.name = strdup(name);
   return section;
 }
-static LinkerStatus LinkerProcessShstrtab(LinkerContext* ctx) {
+static LinkerStatus LinkerGenerateShstrtab(const LinkerContext* ctx) {
   ElfFile* elf = ctx->out;
 
   uint32_t new_count = elf->header.e_shnum + 1;
@@ -552,7 +565,7 @@ static LinkerStatus LinkerProcessShstrtab(LinkerContext* ctx) {
   return LinkerSuccess;
 }
 
-static LinkerStatus LinkerUpdateRelocationHeaders(LinkerContext* ctx) {
+static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx) {
   LinkerStatus status = LinkerSuccess;
   uint32_t rel_count = 0;
   ElfSection** rel_sections =
@@ -641,8 +654,9 @@ Cleanup:
   return status;
 }
 
-static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr, uint32_t type,
-                                        uint32_t delta) {
+static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr,
+                                        const uint32_t type,
+                                        const uint32_t delta) {
   uint32_t inst = *(uint32_t*)instruction_ptr;
   // Since it's from raw data, we have to convert
   if (!is_host_big_endian()) {
@@ -667,7 +681,7 @@ static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr, uint32_t type,
   }
   *(uint32_t*)instruction_ptr = inst;
 }
-bool isSingleton(ElfSection* section) {
+bool isSingleton(const ElfSection* section) {
   // Those sections should only be present once in the result file.
   return strcmp(section->name, ".comment") == 0 ||
          strcmp(section->name, ".ARM.attributes") == 0;
@@ -684,8 +698,8 @@ static void SectionMapAddSection(SectionMap** map, const char* name,
   HASH_ADD_KEYPTR(hh, *map, s->name, strlen(s->name), s);
 }
 
-static void SectionMapUpdateSource(SectionMap* map, const char* name,
-                                   ElfSection* source, uint32_t delta) {
+static void SectionMapUpdateSource(const SectionMap* map, const char* name,
+                                   ElfSection* source, const uint32_t delta) {
   SectionMap* s = NULL;
   HASH_FIND_STR(map, name, s);
   if (s != NULL) {
@@ -718,4 +732,44 @@ static bool IsSymbolFrom(const ElfFile* file, const ElfSymbol* sym) {
 
   return (sym >= file->symbols_table->symbols &&
           sym < file->symbols_table->symbols + file->symbols_table->count);
+}
+static void LinkerContextDestroy(LinkerContext* ctx) {
+  if (ctx->symbol_map) {
+    SymbolMapFreeAll(&ctx->symbol_map);
+    ctx->symbol_map = NULL;
+  }
+  if (ctx->f1_sec_to_out_idx) {
+    free(ctx->f1_sec_to_out_idx);
+    ctx->f1_sec_to_out_idx = NULL;
+  }
+  if (ctx->f1_sym_to_out_idx) {
+    free(ctx->f1_sym_to_out_idx);
+    ctx->f1_sym_to_out_idx = NULL;
+  }
+  if (ctx->f2_offsets) {
+    free(ctx->f2_offsets);
+    ctx->f2_offsets = NULL;
+  }
+
+  if (ctx->f2_sec_to_out_idx) {
+    free(ctx->f2_sec_to_out_idx);
+    ctx->f2_sec_to_out_idx = NULL;
+  }
+  if (ctx->f2_sym_to_out_idx) {
+    free(ctx->f2_sym_to_out_idx);
+    ctx->f2_sym_to_out_idx = NULL;
+  }
+
+  if (ctx->section_map) {
+    SectionMapDestroy(&ctx->section_map);
+  }
+}
+
+void SectionMapDestroy(SectionMap** map) {
+  SectionMap *current, *tmp;
+  HASH_ITER(hh, *map, current, tmp) {
+    HASH_DEL(*map, current);
+    free(current->name);
+    free(current);
+  }
 }
