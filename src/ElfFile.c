@@ -713,6 +713,10 @@ ElfSection* ElfFileGetSectionByName(const char* name, ElfFile* elf) {
   if (!name || !elf) return NULL;
 
   for (int i = 0; i < elf->header.e_shnum; i++) {
+    if (elf->sections[i].name == NULL) {
+      continue;
+    }
+
     if (strcmp(elf->sections[i].name, name) == 0) {
       return &elf->sections[i];
     }
