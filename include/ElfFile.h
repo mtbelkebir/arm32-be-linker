@@ -235,4 +235,13 @@ ElfSymbol** ElfFileGetSymbolsByBinding(ElfFile* f, uint32_t bind,
  */
 ElfSymbol** ElfFileGetSymbolsByType(ElfFile* f, uint32_t type,
                                     size_t* out_count);
+
+
+/**
+ * @brief Filters symbols that are external (binding is GLOBAL or WEAK).
+ *
+ * @return A dynamically allocated array of pointers to existing ElfSymbol
+ * structures.
+ */
+ElfSymbol** ElfFileGetExternalSymbols(const ElfFile* f, size_t* out_count);
 #endif  //_ELF_OPS_H

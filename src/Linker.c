@@ -119,8 +119,8 @@ LinkerStatus GenerateMergedSymbolsTable(LinkerContext* ctx) {
   size_t n_glob1 = 0, n_glob2 = 0;
 
   // Fetch globals from both
-  ElfSymbol** glob1 = ElfFileGetSymbolsByBinding(f1, STB_GLOBAL, &n_glob1);
-  ElfSymbol** glob2 = ElfFileGetSymbolsByBinding(f2, STB_GLOBAL, &n_glob2);
+  ElfSymbol** glob1 = ElfFileGetExternalSymbols(f1, &n_glob1);
+  ElfSymbol** glob2 = ElfFileGetExternalSymbols(f2, &n_glob2);
 
   if ((n_glob1 > 0 && !glob1) || (n_glob2 > 0 && !glob2)) {
     status = LinkerMemoryError;
