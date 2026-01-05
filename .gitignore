@@ -45,3 +45,5 @@ bin/
 src/.dirstamp
 main
 .clangd
+ld
+readelf
