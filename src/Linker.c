@@ -804,3 +804,16 @@ void SectionMapDestroy(SectionMap** map) {
     free(current);
   }
 }
+
+const char* LinkerStatusToString(const LinkerStatus status) {
+  switch (status) {
+    case LinkerSuccess:
+      return "LinkerSuccess";
+    case LinkerDuplicateSymbol:
+      return "LinkerDuplicateSymbol";
+    case LinkerMemoryError:
+      return "LinkerMemoryError";
+    default:
+      return "Unknown";
+  }
+}
