@@ -853,6 +853,11 @@ ElfParsingStatus ElfFileWriteToDisk(const char* path, ElfFile* f) {
 
   // Writing of section contents
   for (int i = 0; i < f->header.e_shnum; i++) {
+    // Those sections don't actually hold data, so we can skip it.
+    if (f->sections[i].header.sh_type == SHT_NOBITS) {
+      f->sections[i].header.sh_offset = (uint32_t)current_offset;
+      continue;
+    }
     const uint32_t alignment = f->sections[i].header.sh_addralign;
     size_t required_padding =
         (alignment > 1) ? (alignment - (current_offset % alignment)) % alignment
