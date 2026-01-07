@@ -80,7 +80,7 @@ static LinkerStatus LinkerMergeSections(LinkerContext* ctx);
 static bool IsSymbolFrom(const ElfFile* file, const ElfSymbol* sym);
 static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx);
 static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr, uint32_t type,
-                                        uint32_t delta);
+                                        int32_t delta);
 static void SectionMapDestroy(SectionMap** map);
 static void LinkerContextDestroy(LinkerContext* ctx);
 
@@ -605,109 +605,121 @@ static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx) {
   for (uint32_t i = 0; i < rel_count; ++i) {
     ElfSection* rel = rel_sections[i];
 
-    if (!rel->data || rel->header.sh_size == 0) {
+    if (!rel->data || rel->header.sh_size == 0 || rel->header.sh_entsize == 0) {
       continue;
     }
-    // FIXME: what if the section's name is just ".rel"? does this even happen?
-    char* og_section_name = rel_sections[i]->name + 4; // To remove the .rel
+    size_t rel_entires_count = rel->header.sh_size / sizeof(Elf32_Rel);
+    Elf32_Rel* rel_entries = (Elf32_Rel*)rel->data;
 
-    SectionMap* lookup = NULL;
-    HASH_FIND_STR(ctx->section_map, og_section_name, lookup);
-    if (!lookup) {
-      // that would mean somehow a section appeared out of nowhere
-      // FIXME: some ignored sections such as the debug ones may leave
-      // their relocations. Check this doesn't cause a bug.
-      // status = LinkerUnknownError;
-      // goto Cleanup;
-      continue;
-    }
-
-    // They will now point to the new symtab, and the new merged section.
-    rel->header.sh_link = ctx->symtab_idx;
-    rel->header.sh_info = lookup->new_idx;
-
-    uint32_t n1 = 0;
+    // Check if the current section is present in f1.
+    uint32_t f1_rel_entry_count = 0;
     ElfSection* f1_rel = ElfFileGetSectionByName(rel->name, ctx->in1);
-    if (f1_rel) n1 = f1_rel->header.sh_size / sizeof(Elf32_Rel);
-
-    if (!rel->data) {
-      goto Cleanup;
+    if (f1_rel && f1_rel->header.sh_size > 0) {
+      f1_rel_entry_count = f1_rel->header.sh_size / sizeof(Elf32_Rel);
     }
-    Elf32_Rel* entries = (Elf32_Rel*)rel->data;
-    uint32_t entry_count = rel->header.sh_size / sizeof(Elf32_Rel);
 
-    for (int j = 0; j < entry_count; ++j) {
-      Elf32_Rel* entry = &entries[j];
+    for (int j = 0; j < rel_entires_count; ++j) {
+      // From this point on, we're manipulating raw data, so it's capital to manage
+      // endianness.
+      Elf32_Rel* current_rel_entry = rel_entries + j;
+      uint32_t r_offset = is_host_big_endian()
+                            ? current_rel_entry->r_offset
+                            : byte_swap(current_rel_entry->r_offset);
+      uint32_t r_info = is_host_big_endian()
+                          ? current_rel_entry->r_info
+                          : byte_swap(current_rel_entry->r_info);
+      unsigned int r_type = ELF32_R_TYPE(r_info);
+      uint32_t r_sym = ELF32_R_SYM(r_info);
 
-      uint32_t r_info =
-          !is_host_big_endian() ? byte_swap(entry->r_info) : entry->r_info;
-      uint32_t r_offset =
-          !is_host_big_endian()
-            ? byte_swap(entry->r_offset)
-            : entry->r_offset;
+      bool is_current_rel_entry_from_f1 = j < f1_rel_entry_count;
 
-      uint32_t r_type = ELF32_R_TYPE(r_info);
-      uint32_t old_sym_idx = ELF32_R_SYM(r_info);
-      uint32_t new_sym_idx = 0;
-      uint32_t delta = lookup->offset;
-      bool is_from_f1 = (j < n1);
+      // FIXME: what if the section's name is just ".rel"? does this even happen?
+      char* og_section_name = rel_sections[i]->name + 4; // To remove the .rel
+      // Retrieve relocation symbol
+      SectionMap* lookup = NULL;
+      HASH_FIND_STR(ctx->section_map, og_section_name, lookup);
+      if (!lookup) {
+        // Destination section is not found, nothing to be done here
+        continue;
+      }
 
-      if (is_from_f1) {
-        new_sym_idx = ctx->f1_sym_to_out_idx[old_sym_idx];
-      } else {
-        new_sym_idx = ctx->f2_sym_to_out_idx[old_sym_idx];
-        r_offset += delta;
+      // Get the current relocated symbol's final position.
+      uint32_t new_sym_idx = is_current_rel_entry_from_f1
+                               ? ctx->f1_sym_to_out_idx[r_sym]
+                               : ctx->f2_sym_to_out_idx[r_sym];
 
-        ElfSymbol* s = &ctx->out->symbols_table->symbols[new_sym_idx];
-        if (ELF32_ST_TYPE(s->sym.st_info) == STT_SECTION) {
-          ElfSection* out_sec =
-              ElfFileGetSectionByName(og_section_name, ctx->out);
-          if (out_sec && out_sec->data) {
-            LinkerPatchRelocationBinary(out_sec->data + r_offset, r_type,
-                                        delta);
-          }
+      ElfSymbol* original_symbol = is_current_rel_entry_from_f1
+                                     ? &ctx->in1->symbols_table->symbols[r_sym]
+                                     : &ctx->in2->symbols_table->symbols[r_sym];
+      ElfSymbol* resolved_symbol =
+          &ctx->out->symbols_table->symbols[new_sym_idx];
+
+      // Resolving adresses s.t P is the instruction and S the symbol it's supposed to point to.
+
+      int32_t S = (int32_t)resolved_symbol->sym.st_value;
+      int32_t P = (int32_t)r_offset + (is_current_rel_entry_from_f1
+                                         ? 0
+                                         : lookup->offset);
+
+      int32_t patch_value = 0;
+      // Determine by how much the immediate needs to shift
+      if (r_type == R_ARM_ABS32) {
+        // this is absolute, so it's just the address of the symbol
+        patch_value = S - (int32_t)original_symbol->sym.st_value;
+      } else if (r_type == R_ARM_JUMP24 || r_type == R_ARM_CALL) {
+        // since it's a call, we'll put the relative distance
+        if (original_symbol->sym.st_shndx == SHN_UNDEF) {
+          patch_value = S - P;
+        } else {
+          // this is an internal jump, we just adjust the relative distance.
+          int32_t S_orig = (int32_t)original_symbol->sym.st_value;
+          int32_t P_orig = (int32_t)r_offset;
+          patch_value = (S - P) - (S_orig - P_orig);
         }
       }
 
-      entries[j].r_offset =
-          !is_host_big_endian() ? byte_swap(r_offset) : r_offset;
-      entries[j].r_info = !is_host_big_endian()
-                            ? byte_swap(ELF32_R_INFO(new_sym_idx, r_type))
-                            : ELF32_R_INFO(new_sym_idx, r_type);
+      uint32_t final_r_offset = is_current_rel_entry_from_f1
+                                  ? r_offset
+                                  : r_offset + lookup->offset;
+      if (r_type != R_ARM_V4BX) {
+        ElfSection* target_sec = ElfFileGetSectionByName(
+            og_section_name, ctx->out);
+        LinkerPatchRelocationBinary(target_sec->data + final_r_offset, r_type,
+                                    patch_value);
+      }
+      current_rel_entry->r_offset = !is_host_big_endian()
+                                      ? byte_swap(final_r_offset)
+                                      : final_r_offset;
+      current_rel_entry->r_info = !is_host_big_endian()
+                                    ? byte_swap(
+                                        ELF32_R_INFO(new_sym_idx, r_type))
+                                    : ELF32_R_INFO(new_sym_idx, r_type);
     }
   }
-Cleanup:
+
   free(rel_sections);
   return status;
 }
 
 static void LinkerPatchRelocationBinary(uint8_t* instruction_ptr,
                                         const uint32_t type,
-                                        const uint32_t delta) {
-  uint32_t inst = *(uint32_t*)instruction_ptr;
-  // Since it's from raw data, we have to convert
-  if (!is_host_big_endian()) {
-    inst = byte_swap(inst);
-  }
+                                        const int32_t delta) {
+  int32_t inst = *(int32_t*)instruction_ptr;
+  if (!is_host_big_endian()) inst = byte_swap(inst);
 
   if (type == R_ARM_ABS32) {
     inst += delta;
   } else if (type == R_ARM_JUMP24 || type == R_ARM_CALL || type ==
              R_ARM_PC24) {
-    uint32_t imm24 = inst & 0x00ffffff;
-    // Checking for the offset's sign
-    if (imm24 & 0x00800000) {
-      // it's negative, we have to keep the sign.
-      imm24 |= 0xff000000;
-    }
-    imm24 += delta / 4;
+    int32_t imm24 = inst & 0x00ffffff;
+    if (imm24 & 0x00800000) imm24 |= (int32_t)0xff000000;
+    imm24 += (delta / 4);
+
     inst = (inst & 0xFF000000) | (imm24 & 0x00FFFFFF);
   }
-  // Rewrite in BE
-  if (!is_host_big_endian()) {
-    inst = byte_swap(inst);
-  }
-  *(uint32_t*)instruction_ptr = inst;
+
+  if (!is_host_big_endian()) inst = byte_swap(inst);
+  *(int32_t*)instruction_ptr = inst;
 }
 
 bool isSingleton(const ElfSection* section) {
