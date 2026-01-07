@@ -64,7 +64,8 @@ int main(int argc, char** argv) {
     }
     ElfFileDestroy(result);
   } else {
-    fprintf(stderr, "Error linking %s, (%s)\n", file1_path, "");
+    fprintf(stderr, "Error linking %s, (%s)\n", file1_path,
+            LinkerStatusToString(linker_status));
   }
 
   ElfFileDestroy(f1);
