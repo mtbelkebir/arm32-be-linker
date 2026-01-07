@@ -10,3 +10,6 @@ else
     echo "Error: Final symbol is not Weak (Type found: $TYPE)"
     exit 1
 fi
+
+f(x)
+f(f(x)) == f(x)
