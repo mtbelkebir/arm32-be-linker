@@ -695,6 +695,7 @@ static LinkerStatus LinkerProcessRelocations(LinkerContext* ctx) {
                                         ELF32_R_INFO(new_sym_idx, r_type))
                                     : ELF32_R_INFO(new_sym_idx, r_type);
     }
+    rel->header.sh_link = ctx->symtab_idx;
   }
 
   free(rel_sections);
