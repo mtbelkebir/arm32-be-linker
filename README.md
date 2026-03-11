@@ -1,4 +1,4 @@
-# Academic ARM Merger
+# Academic ARM Linker
 
 This project involves the development of a subset of features constituting a linker capable of merging multiple ELF object files for Big Endian ARM processors. The result of the merge is a relocatable file that can be used in future compilation stages.
 
